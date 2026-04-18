@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ExtremaSpectrum/ExtremaSpectrum.csproj" />
+    <Project Path="src/ExtremaSpectrum.Demo/ExtremaSpectrum.Demo.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ExtremaSpectrum.Tests/ExtremaSpectrum.Tests.csproj" />
+  </Folder>
+</Solution>

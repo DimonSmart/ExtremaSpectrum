@@ -34,9 +34,15 @@ internal sealed class SegmentedSpectrumOptions
 
     public AccumulationMode AccumulationMode { get; init; } = AccumulationMode.Amplitude;
 
+    public int FromBin { get; init; } = 0;
+
+    public int? ToBin { get; init; } = null;
+
     public bool DumpPasses { get; init; }
 
     public string? StepImageOutputDirectory { get; init; }
+
+    public int EffectiveToBin(int totalBins) => Math.Min(ToBin ?? (totalBins - 1), totalBins - 1);
 
     public int WindowSamples(int sampleRate) => SecondsToSamples(WindowSeconds, sampleRate);
 

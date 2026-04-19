@@ -97,6 +97,8 @@ internal static class Program
         var maxPasses = 12;
         var dumpPasses = false;
         string? stepImageOutputDirectory = null;
+        var fromBin = 0;
+        int? toBin = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -177,6 +179,14 @@ internal static class Program
                     maxPasses = ParsePositiveInt(RequireValue(args, ref i, arg), arg);
                     break;
 
+                case "--from-bin":
+                    fromBin = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--to-bin":
+                    toBin = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg);
+                    break;
+
                 case "--dump-passes":
                     dumpPasses = true;
                     break;
@@ -198,6 +208,12 @@ internal static class Program
             throw new ArgumentException("Overlap must be smaller than the window size.");
         if (useMicrophone && stepImageOutputDirectory is not null)
             throw new ArgumentException("--export-step-images is supported only for file input.");
+        if (fromBin >= binCount)
+            throw new ArgumentException($"--from-bin must be less than --bins ({binCount}).");
+        if (toBin.HasValue && toBin.Value >= binCount)
+            throw new ArgumentException($"--to-bin must be less than --bins ({binCount}).");
+        if (toBin.HasValue && toBin.Value < fromBin)
+            throw new ArgumentException("--to-bin must be >= --from-bin.");
 
         return new SegmentedSpectrumOptions
         {
@@ -218,7 +234,9 @@ internal static class Program
             ChartHeight = chartHeight,
             MaxPasses = maxPasses,
             DumpPasses = dumpPasses,
-            StepImageOutputDirectory = stepImageOutputDirectory
+            StepImageOutputDirectory = stepImageOutputDirectory,
+            FromBin = fromBin,
+            ToBin = toBin
         };
     }
 
@@ -300,11 +318,12 @@ internal static class Program
         AnsiConsole.MarkupLine("[grey]Analyzes a WAV file in overlapping windows and prints equalizer-like histograms.[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Usage:");
-        AnsiConsole.WriteLine("  dotnet run --project src/ExtremaSpectrum.Demo -- [--input PATH] [--microphone] [--list-input-devices] [--device-index N] [--microphone-sample-rate HZ] [--buffer-milliseconds N] [--silence-rms-threshold VALUE] [--display-reference-rms VALUE] [--accumulation NAME] [--min-frequency HZ] [--min-amplitude VALUE] [--window-seconds N] [--overlap-seconds N] [--bins N] [--height N] [--passes N] [--dump-passes] [--export-step-images DIR]");
+        AnsiConsole.WriteLine("  dotnet run --project src/ExtremaSpectrum.Demo -- [--input PATH] [--microphone] [--list-input-devices] [--device-index N] [--microphone-sample-rate HZ] [--buffer-milliseconds N] [--silence-rms-threshold VALUE] [--display-reference-rms VALUE] [--accumulation NAME] [--min-frequency HZ] [--min-amplitude VALUE] [--window-seconds N] [--overlap-seconds N] [--bins N] [--from-bin N] [--to-bin N] [--height N] [--passes N] [--dump-passes] [--export-step-images DIR]");
         AnsiConsole.WriteLine("  accumulation: amplitude, energy");
         AnsiConsole.WriteLine("  microphone: use --microphone to capture live audio, Ctrl+C to stop");
         AnsiConsole.WriteLine("  silence gate: --silence-rms-threshold 0 disables it");
         AnsiConsole.WriteLine("  live display scaling: --display-reference-rms 0.01 maps that RMS to full chart height");
+        AnsiConsole.WriteLine("  from-bin / to-bin: restrict displayed bins to [from-bin, to-bin] inclusive (0-based, default: all bins)");
         AnsiConsole.WriteLine("  export-step-images: writes SVG files showing the waveform before and after each pass");
     }
 

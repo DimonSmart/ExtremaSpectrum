@@ -39,7 +39,9 @@ internal static class MicrophoneConsoleRenderer
             : new Markup(SpectrumConsoleRenderer.BuildChartMarkup(
                 frame.Result,
                 options.ChartHeight,
-                Math.Clamp(frame.Rms / options.MicrophoneDisplayReferenceRms, 0f, 1f)));
+                Math.Clamp(frame.Rms / options.MicrophoneDisplayReferenceRms, 0f, 1f),
+                options.FromBin,
+                options.EffectiveToBin(frame.Result.Spectrum.Length)));
 
         var chartPanel = new Panel(chartContent)
             .Header("[bold]Live Spectrum[/]")
@@ -51,7 +53,7 @@ internal static class MicrophoneConsoleRenderer
                 $"[grey]RMS:[/] {frame.Rms.ToString("0.000", CultureInfo.InvariantCulture)}   " +
                 $"[grey]Passes:[/] {frame.Result.PassesPerformed}   " +
                 $"[grey]Oscillations:[/] {frame.Result.OscillationsDetected}   " +
-                $"[grey]Peaks:[/] {Markup.Escape(SpectrumConsoleRenderer.BuildPeakSummary(frame.Result, 3))}\n" +
+                $"[grey]Peaks:[/] {Markup.Escape(SpectrumConsoleRenderer.BuildPeakSummary(frame.Result, 3, options.FromBin, options.EffectiveToBin(frame.Result.Spectrum.Length)))}\n" +
                 $"[grey]{Markup.Escape(statusText)}   Updated: {Markup.Escape(frame.CapturedAt.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture))}[/]");
 
         var grid = new Grid();

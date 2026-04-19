@@ -6,18 +6,27 @@ namespace ExtremaSpectrum.Demo;
 
 internal static class SpectrumConsoleRenderer
 {
-    internal static string BuildChartMarkup(AnalysisResult result, int chartHeight, float overallScale = 1f)
+    internal static string BuildChartMarkup(
+        AnalysisResult result,
+        int chartHeight,
+        float overallScale = 1f,
+        int fromBin = 0,
+        int toBin = -1)
     {
         const string filledCell = "██  ";
         const string emptyCell = "    ";
         const string baselineCell = "─── ";
 
-        var heights = ComputeHeights(result.Spectrum, chartHeight, overallScale);
+        if (toBin < 0) toBin = result.Spectrum.Length - 1;
+        fromBin = Math.Clamp(fromBin, 0, result.Spectrum.Length - 1);
+        toBin = Math.Clamp(toBin, fromBin, result.Spectrum.Length - 1);
+
+        var heights = ComputeHeights(result.Spectrum, chartHeight, overallScale, fromBin, toBin);
         var builder = new StringBuilder();
 
         for (var row = chartHeight; row >= 1; row--)
         {
-            for (var i = 0; i < heights.Length; i++)
+            for (var i = fromBin; i <= toBin; i++)
             {
                 if (heights[i] >= row)
                 {
@@ -36,11 +45,11 @@ internal static class SpectrumConsoleRenderer
             builder.AppendLine();
         }
 
-        for (var i = 0; i < result.Spectrum.Length; i++)
+        for (var i = fromBin; i <= toBin; i++)
             builder.Append("[grey]").Append(baselineCell).Append("[/]");
         builder.AppendLine();
 
-        for (var i = 0; i < result.BinCenterHz.Length; i++)
+        for (var i = fromBin; i <= toBin; i++)
         {
             builder.Append("[grey]")
                 .Append(FormatBucketLabel(result.BinCenterHz[i]))
@@ -53,9 +62,13 @@ internal static class SpectrumConsoleRenderer
         return builder.ToString();
     }
 
-    internal static string BuildPeakSummary(AnalysisResult result, int count)
+    internal static string BuildPeakSummary(AnalysisResult result, int count, int fromBin = 0, int toBin = -1)
     {
-        var topBins = Enumerable.Range(0, result.Spectrum.Length)
+        if (toBin < 0) toBin = result.Spectrum.Length - 1;
+        fromBin = Math.Clamp(fromBin, 0, result.Spectrum.Length - 1);
+        toBin = Math.Clamp(toBin, fromBin, result.Spectrum.Length - 1);
+
+        var topBins = Enumerable.Range(fromBin, toBin - fromBin + 1)
             .OrderByDescending(index => result.Spectrum[index])
             .ThenBy(index => index)
             .Take(count)
@@ -154,10 +167,11 @@ internal static class SpectrumConsoleRenderer
                 $"[grey]Passes:[/] {segment.Result.PassesPerformed}   " +
                 $"[grey]Oscillations:[/] {segment.Result.OscillationsDetected}");
 
-            var chartMarkup = BuildChartMarkup(segment.Result, options.ChartHeight);
+            var effectiveToBin = options.EffectiveToBin(segment.Result.Spectrum.Length);
+            var chartMarkup = BuildChartMarkup(segment.Result, options.ChartHeight, 1f, options.FromBin, effectiveToBin);
             AnsiConsole.Write(new Markup(chartMarkup));
 
-            var peaks = BuildPeakSummary(segment.Result, count: 3);
+            var peaks = BuildPeakSummary(segment.Result, count: 3, options.FromBin, effectiveToBin);
             AnsiConsole.MarkupLine($"[grey]Peaks:[/] {Markup.Escape(peaks)}");
 
             if (options.DumpPasses && segment.DetailedReport is not null)
@@ -170,15 +184,17 @@ internal static class SpectrumConsoleRenderer
         }
     }
 
-    internal static int[] ComputeHeights(float[] spectrum, int chartHeight, float overallScale = 1f)
+    internal static int[] ComputeHeights(float[] spectrum, int chartHeight, float overallScale = 1f, int fromBin = 0, int toBin = -1)
     {
+        if (toBin < 0) toBin = spectrum.Length - 1;
+
         var heights = new int[spectrum.Length];
         var clampedScale = Math.Clamp(overallScale, 0f, 1f);
         if (clampedScale <= 0f)
             return heights;
 
         var maxValue = 0f;
-        for (var i = 0; i < spectrum.Length; i++)
+        for (var i = fromBin; i <= toBin; i++)
         {
             if (spectrum[i] > maxValue)
                 maxValue = spectrum[i];
@@ -187,7 +203,7 @@ internal static class SpectrumConsoleRenderer
         if (maxValue <= 0f)
             return heights;
 
-        for (var i = 0; i < spectrum.Length; i++)
+        for (var i = fromBin; i <= toBin; i++)
         {
             var normalized = spectrum[i] / maxValue;
             var perceptual = MathF.Sqrt(normalized);

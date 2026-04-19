@@ -185,6 +185,13 @@ public sealed class ExtremaSpectrumAnalyzer
             throw new ArgumentOutOfRangeException(nameof(fmt.SampleRate), "SampleRate must be > 0.");
         if (fmt.Channels <= 0)
             throw new ArgumentOutOfRangeException(nameof(fmt.Channels), "Channels must be > 0.");
+        if (fmt.ChannelMixMode == ChannelMixMode.PreferredChannel &&
+            (fmt.PreferredChannel < 0 || fmt.PreferredChannel >= fmt.Channels))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(fmt.PreferredChannel),
+                $"PreferredChannel must be in [0, {fmt.Channels - 1}] when ChannelMixMode is PreferredChannel.");
+        }
         if (fmt.BitsPerSample != expectedBitsPerSample)
             throw new ArgumentException(
                 $"BitsPerSample must be {expectedBitsPerSample} for this method, " +

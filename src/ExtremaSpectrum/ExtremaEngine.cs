@@ -12,6 +12,8 @@ internal static class ExtremaEngine
         public bool ContributesToSpectrum => BinIndex is not null;
     }
 
+    private readonly record struct SmoothingRange(int Start, int End, float StartValue, float EndValue);
+
     internal static (int passes, int oscillations) Run(
         ReadOnlySpan<float> samples,
         int sampleRate,
@@ -30,6 +32,7 @@ internal static class ExtremaEngine
         bool captureDetails)
     {
         var sampleCount = samples.Length;
+        var workSamples = samples.ToArray();
         var totalSpectrum = new float[options.BinCount];
         var passSpectra = captureDetails ? new List<float[]>() : [];
         var oscillationsPerPass = captureDetails ? new List<int>() : [];
@@ -62,8 +65,10 @@ internal static class ExtremaEngine
         {
             var passSpectrum = new float[options.BinCount];
             var nextSegments = new List<ActiveSegment>();
+            var smoothingRanges = new List<SmoothingRange>();
             var passOscillations = captureDetails ? new List<ExtremaOscillationTrace>() : null;
             var sourceSegments = captureDetails ? CopySegments(activeSegments) : [];
+            var waveformBeforePass = captureDetails ? (float[])workSamples.Clone() : null;
             var foundOscillations = 0;
 
             foreach (var segment in activeSegments)
@@ -71,12 +76,12 @@ internal static class ExtremaEngine
                 if (segment.Length < 3)
                     continue;
 
-                var extremaCount = FindExtrema(samples, segment.Start, segment.End, extremaIndices, extremaKinds);
+                var extremaCount = FindExtrema(workSamples, segment.Start, segment.End, extremaIndices, extremaKinds);
                 if (extremaCount < 3)
                     continue;
 
                 foundOscillations += ProcessSegment(
-                    samples,
+                    workSamples,
                     sampleRate,
                     options,
                     effectiveMaxPeriod,
@@ -85,13 +90,15 @@ internal static class ExtremaEngine
                     extremaKinds,
                     extremaCount,
                     passSpectrum,
+                    passOscillations,
                     nextSegments,
-                    passOscillations);
+                    smoothingRanges);
             }
 
             if (foundOscillations == 0)
                 break;
 
+            ApplySmoothingRanges(workSamples, smoothingRanges);
             AddSpectrum(totalSpectrum, passSpectrum);
             totalOscillations += foundOscillations;
             passesPerformed++;
@@ -105,12 +112,14 @@ internal static class ExtremaEngine
                     PassIndex = passIndex,
                     SourceSegments = sourceSegments,
                     RemainingSegments = CopySegments(nextSegments),
+                    WaveformBeforePass = waveformBeforePass!,
+                    WaveformAfterPass = (float[])workSamples.Clone(),
                     Oscillations = passOscillations!,
                     SpectrumContribution = passSpectrum
                 });
             }
 
-            activeSegments = nextSegments;
+            activeSegments = [new ActiveSegment(0, sampleCount - 1)];
         }
 
         return new ExtremaEngineExecutionResult
@@ -134,13 +143,16 @@ internal static class ExtremaEngine
         bool[] extremaKinds,
         int extremaCount,
         float[] spectrum,
+        List<ExtremaOscillationTrace>? passOscillations,
         List<ActiveSegment> nextSegments,
-        List<ExtremaOscillationTrace>? passOscillations)
+        List<SmoothingRange> smoothingRanges)
     {
         var foundOscillations = 0;
         var remainderStart = segment.Start;
         var extremaCursor = 0;
         var acceptedAny = false;
+        var previousAcceptedCursor = -2;
+        var previousRightBoundary = -1;
 
         while (extremaCursor + 2 < extremaCount)
         {
@@ -186,6 +198,11 @@ internal static class ExtremaEngine
                 foundOscillations++;
             }
 
+            var leftBoundary = extremaCursor == previousAcceptedCursor + 1
+                ? previousRightBoundary
+                : GetLeftBoundarySample(segment.Start, extremaCursor, leftIndex, midIndex);
+            var rightBoundary = GetRightBoundarySample(segment.End, extremaCursor, extremaCount, midIndex, rightIndex);
+
             passOscillations?.Add(new ExtremaOscillationTrace(
                 leftIndex,
                 midIndex,
@@ -193,21 +210,53 @@ internal static class ExtremaEngine
                 computedContribution.FrequencyHz,
                 amplitude,
                 computedContribution.BinIndex,
-                computedContribution.BinIndex is null ? 0f : computedContribution.Value));
+                computedContribution.BinIndex is null ? 0f : computedContribution.Value,
+                leftBoundary,
+                rightBoundary));
 
-            TryAddSegment(nextSegments, remainderStart, leftIndex);
-            remainderStart = rightIndex;
-
-            var nextCursor = extremaCursor + 2;
-            while (nextCursor < extremaCount && extremaIndices[nextCursor] <= rightIndex)
-                nextCursor++;
-            extremaCursor = nextCursor;
+            TryAddSegment(nextSegments, remainderStart, leftBoundary);
+            smoothingRanges.Add(new SmoothingRange(
+                leftBoundary,
+                rightBoundary,
+                samples[leftBoundary],
+                samples[rightBoundary]));
+            remainderStart = rightBoundary;
+            previousAcceptedCursor = extremaCursor;
+            previousRightBoundary = rightBoundary;
+            extremaCursor++;
         }
 
         if (acceptedAny)
             TryAddSegment(nextSegments, remainderStart, segment.End);
 
         return foundOscillations;
+    }
+
+    private static int GetLeftBoundarySample(int segmentStart, int extremaCursor, int leftIndex, int midIndex)
+        => extremaCursor == 0
+            ? segmentStart
+            : leftIndex + ((midIndex - leftIndex) / 2);
+
+    private static int GetRightBoundarySample(int segmentEnd, int extremaCursor, int extremaCount, int midIndex, int rightIndex)
+        => extremaCursor + 2 == extremaCount - 1
+            ? segmentEnd
+            : midIndex + ((rightIndex - midIndex + 1) / 2);
+
+    private static void ApplySmoothingRanges(float[] samples, IReadOnlyList<SmoothingRange> smoothingRanges)
+    {
+        foreach (var smoothingRange in smoothingRanges)
+        {
+            var width = smoothingRange.End - smoothingRange.Start;
+            if (width < 1)
+                continue;
+
+            for (var offset = 1; offset < width; offset++)
+            {
+                var t = offset / (float)width;
+                samples[smoothingRange.Start + offset] =
+                    smoothingRange.StartValue + ((smoothingRange.EndValue - smoothingRange.StartValue) * t);
+            }
+        }
     }
 
     private static int FindExtrema(
@@ -278,7 +327,7 @@ internal static class ExtremaEngine
 
     private static void TryAddSegment(List<ActiveSegment> segments, int start, int end)
     {
-        if (end - start >= 2)
+        if (end >= start)
             segments.Add(new ActiveSegment(start, end));
     }
 }

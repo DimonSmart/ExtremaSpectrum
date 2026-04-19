@@ -128,7 +128,7 @@ internal static class SpectrumConsoleRenderer
         summary.AddRow("Файл", Markup.Escape(options.InputPath));
         summary.AddRow("Формат", $"{waveFile.SampleRate} Hz, {waveFile.Channels} ch, {waveFile.BitsPerSample} bit");
         summary.AddRow("Длительность", $"{waveFile.Duration.TotalSeconds:F3} s");
-        summary.AddRow("Алгоритм", "HardGapRaw");
+        summary.AddRow("Алгоритм", "Extrema oscillation decomposition");
         summary.AddRow("Накопление", AccumulationModeCli.ToDisplayName(options.AccumulationMode));
         summary.AddRow("Окно / перекрытие", $"{options.WindowSeconds:F1} s / {options.OverlapSeconds:F1} s");
         summary.AddRow("Шаг анализа", $"{options.HopSeconds:F1} s");

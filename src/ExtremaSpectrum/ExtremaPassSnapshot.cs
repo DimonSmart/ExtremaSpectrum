@@ -14,9 +14,20 @@ public sealed class ExtremaPassSnapshot
     public required IReadOnlyList<ExtremaSegmentRange> SourceSegments { get; init; }
 
     /// <summary>
-    /// Segments that remain active after the pass and will be revisited later.
+    /// Support segments that remain after the pass before midpoint stitching is
+    /// turned into the waveform for the next pass.
     /// </summary>
     public required IReadOnlyList<ExtremaSegmentRange> RemainingSegments { get; init; }
+
+    /// <summary>
+    /// Waveform that entered this pass.
+    /// </summary>
+    public required float[] WaveformBeforePass { get; init; }
+
+    /// <summary>
+    /// Smoothed waveform produced by this pass and passed into the next one.
+    /// </summary>
+    public required float[] WaveformAfterPass { get; init; }
 
     /// <summary>
     /// Oscillations accepted during this pass.

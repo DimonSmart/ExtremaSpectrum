@@ -40,7 +40,7 @@ public sealed class HardGapAnalysisTests
 
         Assert.True(
             expectedRegion >= maxRegion * 0.70f,
-            $"HardGapRaw lost the main region for {fileName}. Expected region={expectedRegion}, max={maxRegion}.");
+            $"Extrema decomposition lost the main region for {fileName}. Expected region={expectedRegion}, max={maxRegion}.");
     }
 
     [Theory]
@@ -48,8 +48,8 @@ public sealed class HardGapAnalysisTests
     public void MixedTones_ReportsAreNonEmpty(string fileName)
     {
         var report = AnalyzeFixture(fileName);
-        Assert.True(report.PassesPerformed > 0, $"HardGapRaw produced no passes for {fileName}.");
-        Assert.True(report.TotalContribution > 0f, $"HardGapRaw produced an empty spectrum for {fileName}.");
+        Assert.True(report.PassesPerformed > 0, $"Extrema decomposition produced no passes for {fileName}.");
+        Assert.True(report.TotalContribution > 0f, $"Extrema decomposition produced an empty spectrum for {fileName}.");
         Assert.Equal(report.PassesPerformed, report.OscillationsPerPass.Count);
     }
 

@@ -58,15 +58,19 @@ internal static class WaveformStepSvgExporter
         var files = new List<string>(report.PassesPerformed + 1);
         var prefix = $"{inputStem}-window-{segmentIndex + 1:00}";
         var fullRange = new[] { new ExtremaSegmentRange(0, samples.Length - 1) };
+        var referenceMaxAbs = ComputeMaxAbs(samples);
 
         var initialPath = Path.Combine(outputDirectory, $"{prefix}-step-00-initial.svg");
         File.WriteAllText(
             initialPath,
             BuildStepSvg(
                 samples,
+                samples.ToArray(),
+                referenceMaxAbs,
                 sampleRate,
                 title: "Initial waveform",
                 detail: $"Window {segmentIndex + 1}, samples={samples.Length}, duration={samples.Length / (double)sampleRate:0.###} s",
+                oscillations: [],
                 visibleSegments: fullRange,
                 removedRanges: []));
         files.Add(initialPath);
@@ -80,11 +84,14 @@ internal static class WaveformStepSvgExporter
             File.WriteAllText(
                 path,
                 BuildStepSvg(
-                    samples,
+                    pass.WaveformBeforePass,
+                    pass.WaveformAfterPass,
+                    referenceMaxAbs,
                     sampleRate,
                     title: $"Pass {passIndex + 1}",
                     detail:
                         $"removed={pass.OscillationCount}, spectrumOsc={report.OscillationsPerPass[passIndex]}, sourceSegments={pass.SourceSegments.Count}, remainingSegments={pass.RemainingSegments.Count}",
+                    oscillations: pass.Oscillations,
                     visibleSegments: pass.RemainingSegments,
                     removedRanges: removedRanges));
 
@@ -95,27 +102,20 @@ internal static class WaveformStepSvgExporter
     }
 
     private static string BuildStepSvg(
-        ReadOnlySpan<float> samples,
+        ReadOnlySpan<float> inputSamples,
+        ReadOnlySpan<float> outputSamples,
+        float referenceMaxAbs,
         int sampleRate,
         string title,
         string detail,
+        IReadOnlyList<ExtremaOscillationTrace> oscillations,
         IReadOnlyList<ExtremaSegmentRange> visibleSegments,
         IReadOnlyList<ExtremaSegmentRange> removedRanges)
     {
         var builder = new StringBuilder();
         var plotWidth = ImageWidth - LeftMargin - RightMargin;
         var plotHeight = ImageHeight - TopMargin - BottomMargin;
-        var maxAbs = 0f;
-
-        for (var i = 0; i < samples.Length; i++)
-        {
-            var abs = MathF.Abs(samples[i]);
-            if (abs > maxAbs)
-                maxAbs = abs;
-        }
-
-        if (maxAbs <= 0f)
-            maxAbs = 1f;
+        var maxAbs = referenceMaxAbs > 0f ? referenceMaxAbs : 1f;
 
         builder.AppendLine($"""<svg xmlns="http://www.w3.org/2000/svg" width="{ImageWidth}" height="{ImageHeight}" viewBox="0 0 {ImageWidth} {ImageHeight}">""");
         builder.AppendLine("""  <rect width="100%" height="100%" fill="#fffdf8"/>""");
@@ -126,23 +126,46 @@ internal static class WaveformStepSvgExporter
         builder.AppendLine(
             $"""  <line x1="{LeftMargin}" y1="{zeroY}" x2="{LeftMargin + plotWidth}" y2="{zeroY}" stroke="#c8bda9" stroke-width="1"/>""");
 
-        AppendWaveformPolylines(builder, samples, new[] { new ExtremaSegmentRange(0, samples.Length - 1) }, maxAbs, "#c6c3bd", 1.0, 0.65);
-        AppendWaveformPolylines(builder, samples, removedRanges, maxAbs, "#d54b3d", 2.0, 0.95, strokeDashArray: "1 10");
+        AppendWaveformPolylines(
+            builder,
+            inputSamples,
+            new[] { new ExtremaSegmentRange(0, inputSamples.Length - 1) },
+            maxAbs,
+            "#c6c3bd",
+            1.1,
+            0.8,
+            strokeDashArray: "8 6");
+        AppendWaveformPolylines(builder, inputSamples, removedRanges, maxAbs, "#d54b3d", 2.0, 0.95, strokeDashArray: "1 10");
 
         if (visibleSegments.Count > 1)
-            AppendStitchedWaveform(builder, samples, visibleSegments, maxAbs, "#0f3f66", 2.2, 0.95);
+            AppendStitchedWaveform(builder, inputSamples, visibleSegments, maxAbs, "#0f3f66", 2.2, 0.95);
 
-        AppendWaveformPolylines(builder, samples, visibleSegments, maxAbs, "#1f78c8", 2.8, 1.0);
+        AppendExtremaMarkers(builder, inputSamples, oscillations, maxAbs, "#5a4330", 2.6, 0.9);
+        AppendWaveformPolylines(builder, outputSamples, new[] { new ExtremaSegmentRange(0, outputSamples.Length - 1) }, maxAbs, "#1f78c8", 2.8, 1.0);
 
         builder.AppendLine(
             $"""  <text x="{LeftMargin}" y="38" fill="#2c241b" font-family="Consolas, 'Courier New', monospace" font-size="28" font-weight="700">{EscapeXml(title)}</text>""");
         builder.AppendLine(
             $"""  <text x="{LeftMargin}" y="64" fill="#5e5548" font-family="Consolas, 'Courier New', monospace" font-size="16">{EscapeXml(detail)}</text>""");
         builder.AppendLine(
-            $"""  <text x="{LeftMargin}" y="{ImageHeight - 18}" fill="#6f6454" font-family="Consolas, 'Courier New', monospace" font-size="14">sampleRate={sampleRate} Hz, samples={samples.Length}, bright blue=remaining waveform, dark blue=stitched after cut, red dotted=removed on this step, gray=original waveform</text>""");
+            $"""  <text x="{LeftMargin}" y="{ImageHeight - 18}" fill="#6f6454" font-family="Consolas, 'Courier New', monospace" font-size="14">sampleRate={sampleRate} Hz, samples={inputSamples.Length}, gray dashed=input waveform of this pass, brown dots=extrema used on input, dark blue=midpoint stitch guide, red dotted=removed on this pass, bright blue=output waveform of this pass</text>""");
         builder.AppendLine("</svg>");
 
         return builder.ToString();
+    }
+
+    private static float ComputeMaxAbs(ReadOnlySpan<float> samples)
+    {
+        var maxAbs = 0f;
+
+        for (var i = 0; i < samples.Length; i++)
+        {
+            var abs = MathF.Abs(samples[i]);
+            if (abs > maxAbs)
+                maxAbs = abs;
+        }
+
+        return maxAbs > 0f ? maxAbs : 1f;
     }
 
     private static void AppendWaveformPolylines(
@@ -244,6 +267,52 @@ internal static class WaveformStepSvgExporter
             .AppendLine("\"/>");
     }
 
+    private static void AppendExtremaMarkers(
+        StringBuilder builder,
+        ReadOnlySpan<float> samples,
+        IReadOnlyList<ExtremaOscillationTrace> oscillations,
+        float maxAbs,
+        string fill,
+        double radius,
+        double opacity)
+    {
+        if (samples.Length == 0 || oscillations.Count == 0)
+            return;
+
+        var sampleIndices = new HashSet<int>();
+        foreach (var oscillation in oscillations)
+        {
+            sampleIndices.Add(oscillation.LeftSample);
+            sampleIndices.Add(oscillation.MidSample);
+            sampleIndices.Add(oscillation.RightSample);
+        }
+
+        var lastSampleIndex = samples.Length - 1;
+        var plotWidth = ImageWidth - LeftMargin - RightMargin;
+        var plotHeight = ImageHeight - TopMargin - BottomMargin;
+
+        builder.Append("  <g fill=\"")
+            .Append(fill)
+            .Append("\" opacity=\"")
+            .Append(opacity.ToString("0.###", CultureInfo.InvariantCulture))
+            .AppendLine("\">");
+
+        foreach (var sampleIndex in sampleIndices.OrderBy(sampleIndex => sampleIndex))
+        {
+            var x = LeftMargin + (double)sampleIndex * plotWidth / Math.Max(1, lastSampleIndex);
+            var y = ToSvgY(samples[sampleIndex], maxAbs, plotHeight);
+            builder.Append("    <circle cx=\"")
+                .Append(x.ToString("0.###", CultureInfo.InvariantCulture))
+                .Append("\" cy=\"")
+                .Append(y.ToString("0.###", CultureInfo.InvariantCulture))
+                .Append("\" r=\"")
+                .Append(radius.ToString("0.###", CultureInfo.InvariantCulture))
+                .AppendLine("\"/>");
+        }
+
+        builder.AppendLine("  </g>");
+    }
+
     private static void AppendRangePoints(
         StringBuilder points,
         ReadOnlySpan<float> samples,
@@ -290,11 +359,20 @@ internal static class WaveformStepSvgExporter
 
     private static ExtremaSegmentRange[] ToRemovedRanges(IReadOnlyList<ExtremaOscillationTrace> oscillations)
     {
-        var ranges = new ExtremaSegmentRange[oscillations.Count];
-        for (var i = 0; i < oscillations.Count; i++)
-            ranges[i] = new ExtremaSegmentRange(oscillations[i].LeftSample, oscillations[i].RightSample);
+        var ranges = new List<ExtremaSegmentRange>(oscillations.Count);
 
-        return ranges;
+        for (var i = 0; i < oscillations.Count; i++)
+        {
+            var leftBoundary = oscillations[i].LeftBoundarySample;
+            var rightBoundary = oscillations[i].RightBoundarySample;
+            var removedStart = leftBoundary + 1;
+            var removedEnd = rightBoundary - 1;
+
+            if (removedStart <= removedEnd)
+                ranges.Add(new ExtremaSegmentRange(removedStart, removedEnd));
+        }
+
+        return ranges.ToArray();
     }
 
     private static double ToSvgY(float value, float maxAbs, int plotHeight)

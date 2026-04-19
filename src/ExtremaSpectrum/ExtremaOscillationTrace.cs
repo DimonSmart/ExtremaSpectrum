@@ -15,6 +15,8 @@ public readonly record struct ExtremaOscillationTrace
     /// <param name="amplitude">Measured local amplitude.</param>
     /// <param name="binIndex">Spectrum bin index, or <c>null</c> when the frequency is outside the configured range.</param>
     /// <param name="contribution">Value added to the spectrum, or <c>0</c> when no bin was updated.</param>
+    /// <param name="leftBoundarySample">Left smoothing boundary used during removal.</param>
+    /// <param name="rightBoundarySample">Right smoothing boundary used during removal.</param>
     /// <exception cref="ArgumentException">The extremum order is invalid.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A numeric argument is out of range.</exception>
     public ExtremaOscillationTrace(
@@ -24,7 +26,9 @@ public readonly record struct ExtremaOscillationTrace
         float frequencyHz,
         float amplitude,
         int? binIndex,
-        float contribution)
+        float contribution,
+        int? leftBoundarySample = null,
+        int? rightBoundarySample = null)
     {
         if (leftSample < 0)
             throw new ArgumentOutOfRangeException(nameof(leftSample), "leftSample must be >= 0.");
@@ -41,6 +45,17 @@ public readonly record struct ExtremaOscillationTrace
         if (binIndex is int index && index < 0)
             throw new ArgumentOutOfRangeException(nameof(binIndex), "binIndex must be >= 0.");
 
+        var resolvedLeftBoundarySample = leftBoundarySample ?? leftSample;
+        var resolvedRightBoundarySample = rightBoundarySample ?? rightSample;
+        if (resolvedLeftBoundarySample < 0)
+            throw new ArgumentOutOfRangeException(nameof(leftBoundarySample), "leftBoundarySample must be >= 0.");
+        if (resolvedRightBoundarySample < resolvedLeftBoundarySample)
+        {
+            throw new ArgumentException(
+                "rightBoundarySample must be >= leftBoundarySample.",
+                nameof(rightBoundarySample));
+        }
+
         LeftSample = leftSample;
         MidSample = midSample;
         RightSample = rightSample;
@@ -48,6 +63,8 @@ public readonly record struct ExtremaOscillationTrace
         Amplitude = amplitude;
         BinIndex = binIndex;
         Contribution = contribution;
+        LeftBoundarySample = resolvedLeftBoundarySample;
+        RightBoundarySample = resolvedRightBoundarySample;
     }
 
     /// <summary>Index of the left extremum.</summary>
@@ -75,6 +92,12 @@ public readonly record struct ExtremaOscillationTrace
     /// Value added to the spectrum. This is <c>0</c> when <see cref="BinIndex"/> is <c>null</c>.
     /// </summary>
     public float Contribution { get; }
+
+    /// <summary>Left smoothing boundary used during removal.</summary>
+    public int LeftBoundarySample { get; }
+
+    /// <summary>Right smoothing boundary used during removal.</summary>
+    public int RightBoundarySample { get; }
 
     /// <summary>Measured oscillation width in samples.</summary>
     public int PeriodSamples => RightSample - LeftSample;

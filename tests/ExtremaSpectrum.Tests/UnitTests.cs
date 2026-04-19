@@ -223,6 +223,26 @@ public sealed class UnitTests
     }
 
     [Fact]
+    public void AnalyzePcm16_PreferredChannelOutOfRange_ThrowsClearException()
+    {
+        var analyzer = Analyzer();
+        var format = new AudioBufferFormat
+        {
+            SampleRate = 44100,
+            Channels = 2,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.PreferredChannel,
+            PreferredChannel = 2
+        };
+
+        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            analyzer.AnalyzePcm16(new byte[4], format));
+
+        Assert.Equal(nameof(AudioBufferFormat.PreferredChannel), error.ParamName);
+    }
+
+    [Fact]
     public void SameInput_ProducesSameResult()
     {
         const int sampleRate = 44100;

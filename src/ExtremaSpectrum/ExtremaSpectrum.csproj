@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\readme-assets\*.svg" Pack="true" PackagePath="docs/readme-assets/" />
   </ItemGroup>
 
 </Project>

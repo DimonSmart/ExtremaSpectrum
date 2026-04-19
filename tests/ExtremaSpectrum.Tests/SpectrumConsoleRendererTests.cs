@@ -54,6 +54,8 @@ public sealed class SpectrumConsoleRendererTests
                     PassIndex = 0,
                     SourceSegments = [new ExtremaSegmentRange(0, 10)],
                     RemainingSegments = [new ExtremaSegmentRange(4, 10)],
+                    WaveformBeforePass = new float[] { 0f, 1f },
+                    WaveformAfterPass = new float[] { 0f, 1f },
                     Oscillations =
                     [
                         new ExtremaOscillationTrace(1, 2, 3, 150f, 1f, 0, 1f),
@@ -66,6 +68,8 @@ public sealed class SpectrumConsoleRendererTests
                     PassIndex = 1,
                     SourceSegments = [new ExtremaSegmentRange(4, 10)],
                     RemainingSegments = [new ExtremaSegmentRange(7, 10)],
+                    WaveformBeforePass = new float[] { 0f, 1f },
+                    WaveformAfterPass = new float[] { 0f, 0.5f },
                     Oscillations =
                     [
                         new ExtremaOscillationTrace(4, 5, 6, 250f, 0.25f, 1, 0.25f),

@@ -6,6 +6,38 @@ ExtremaSpectrum is a .NET library for audio signal analysis based on an extrema-
 
 Repository: [github.com/DimonSmart/ExtremaSpectrum](https://github.com/DimonSmart/ExtremaSpectrum)
 
+## Visual overview
+
+Visual frequency inspection for sound.  
+ExtremaSpectrum decomposes a waveform into local oscillations, making dominant frequency bands and each reduction pass easy to inspect.
+
+Try the demo with a low-frequency focused view:
+
+```powershell
+dotnet run --project src\ExtremaSpectrum.Demo -- --min-frequency 0 --input ".\data\demo-low-010hz-plus-high-160hz.wav" --bins 180 --to-bin 20
+```
+
+![Console spectrum focused on low-frequency bins](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-low-bins-terminal.png)
+
+`AnalyzeDetailed(...)` returns an `ExtremaAnalysisReport` with per-pass spectra, accepted oscillations, support ranges, and waveform snapshots.  
+The demo app can also export step-by-step SVG frames:
+
+```bash
+dotnet run --project src/ExtremaSpectrum.Demo -- --input data/demo-low-010hz-plus-high-160hz.wav --export-step-images temp
+```
+
+Example frames generated from `data/demo-low-010hz-plus-high-160hz.wav`:
+
+![Initial waveform](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-00-initial.png)
+
+![After pass 1](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-01-pass-01.png)
+
+![After pass 2](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-02-pass-02.png)
+
+![After pass 3](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-03-pass-03.png)
+
+![After pass 4](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-04-pass-04.png)
+
 ## Install
 
 ```bash
@@ -88,35 +120,41 @@ binWidth = (MaxFrequencyHz - MinFrequencyHz) / BinCount
 binIndex = floor((frequencyHz - MinFrequencyHz) / binWidth)
 ```
 
-## Detailed trace and SVG export
-
-`AnalyzeDetailed(...)` returns an `ExtremaAnalysisReport` with per-pass spectra, accepted oscillations, support ranges, and waveform snapshots.
-
-The demo app can also export step-by-step SVG frames:
-
-```bash
-dotnet run --project src/ExtremaSpectrum.Demo -- --input data/demo-low-010hz-plus-high-160hz.wav --export-step-images temp
-```
-
-Example frames generated from `data/demo-low-010hz-plus-high-160hz.wav`:
-
-![Initial waveform](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-00-initial.png)
-
-![After pass 1](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-01-pass-01.png)
-
-![After pass 2](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-02-pass-02.png)
-
-![After pass 3](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-03-pass-03.png)
-
-![After pass 4](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-04-pass-04.png)
-
 ## Input formats
 
-| Method | Format |
-|---|---|
-| `Analyze(ReadOnlySpan<float>, int)` | Normalized mono float, `[-1, +1]` |
-| `AnalyzePcm16(ReadOnlySpan<byte>, AudioBufferFormat)` | Signed 16-bit PCM, little-endian |
-| `AnalyzeFloat32(ReadOnlySpan<byte>, AudioBufferFormat)` | IEEE 754 32-bit float, little-endian |
+All analysis overloads need audio samples plus a sample rate in Hz. The difference is how decoded the input already is.
+
+| Method | What you pass | Where the sample rate comes from | Notes |
+|---|---|---|---|
+| `Analyze(ReadOnlySpan<float> samples, int sampleRate)` | Mono float samples, one `float` per sample, typically normalized to `[-1, +1]` | `sampleRate` argument | Use when audio is already decoded to mono PCM values. |
+| `AnalyzePcm16(ReadOnlySpan<byte> buffer, AudioBufferFormat format)` | Raw signed 16-bit PCM sample bytes, little-endian | `format.SampleRate` | `format` also defines channel count, layout, and mono downmix. `buffer` must contain whole sample frames, not a WAV file header. |
+| `AnalyzeFloat32(ReadOnlySpan<byte> buffer, AudioBufferFormat format)` | Raw 32-bit IEEE float PCM sample bytes, little-endian | `format.SampleRate` | Same as `AnalyzePcm16`, but each sample uses 4 bytes instead of 2. |
+
+`AudioBufferFormat` describes how byte buffers are interpreted:
+
+```csharp
+var format = new AudioBufferFormat
+{
+    SampleRate = 48000,
+    Channels = 2,
+    BitsPerSample = 16,
+    Interleaved = true,
+    ChannelMixMode = ChannelMixMode.AverageAllChannels
+};
+
+AnalysisResult result = analyzer.AnalyzePcm16(buffer, format);
+```
+
+Key `AudioBufferFormat` fields:
+
+- `SampleRate`: samples per second, for example `44100` or `48000`
+- `Channels`: total channel count, for example `1` for mono or `2` for stereo
+- `BitsPerSample`: `16` for `AnalyzePcm16(...)`, `32` for `AnalyzeFloat32(...)`
+- `Interleaved = true`: samples are laid out as `L0 R0 L1 R1 ...`
+- `Interleaved = false`: planar layout, for example all left samples followed by all right samples
+- `PreferredChannel`: zero-based channel index used only when `ChannelMixMode` is `PreferredChannel`
+
+`AnalyzeDetailed(...)` follows the same input rules as `Analyze(...)`. The streaming analyzer uses the same PCM buffer rules for `PushPcm16(...)` and `PushFloat32(...)`.
 
 Multi-channel buffers are mixed to mono according to `ChannelMixMode`:
 

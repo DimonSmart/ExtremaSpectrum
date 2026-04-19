@@ -18,8 +18,6 @@ internal sealed class SegmentedSpectrumOptions
 
     public float MicrophoneDisplayReferenceRms { get; init; } = 0.01f;
 
-    public ExtremaExperimentVariant ExperimentVariant { get; init; } = ExtremaExperimentVariant.Baseline;
-
     public float MinFrequencyHz { get; init; } = 100f;
 
     public double WindowSeconds { get; init; } = 5d;
@@ -31,6 +29,14 @@ internal sealed class SegmentedSpectrumOptions
     public int ChartHeight { get; init; } = 12;
 
     public int MaxPasses { get; init; } = 12;
+
+    public float MinAmplitude { get; init; } = 0f;
+
+    public AccumulationMode AccumulationMode { get; init; } = AccumulationMode.Amplitude;
+
+    public bool DumpPasses { get; init; }
+
+    public string? StepImageOutputDirectory { get; init; }
 
     public int WindowSamples(int sampleRate) => SecondsToSamples(WindowSeconds, sampleRate);
 

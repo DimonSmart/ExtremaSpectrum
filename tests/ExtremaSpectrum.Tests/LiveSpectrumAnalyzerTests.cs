@@ -9,13 +9,11 @@ public sealed class LiveSpectrumAnalyzerTests
     private const int Seconds = 2;
     private const int SampleCount = SampleRate * Seconds;
 
-    [Theory]
-    [InlineData("baseline", 1000f)]
-    [InlineData("hard-gap-raw", 1000f)]
-    [InlineData("hard-gap-period-normalized", 1000f)]
-    public void PushPcm16_ProducesFrame_WithExpectedPeak(string variantName, float frequencyHz)
+    [Fact]
+    public void PushPcm16_ProducesFrame_WithExpectedPeak()
     {
-        var analyzer = CreateAnalyzer(variantName);
+        const float frequencyHz = 1000f;
+        var analyzer = CreateAnalyzer();
         var pcm = Helpers.ToPcm16Bytes(Helpers.Sine(SampleRate, frequencyHz, SampleCount, amplitude: 0.8f));
         var fired = analyzer.PushPcm16(pcm, CreateMonoPcm16Format(), out var frame);
 
@@ -28,13 +26,10 @@ public sealed class LiveSpectrumAnalyzerTests
         Assert.InRange(peakBin, Math.Max(0, expectedBin - 2), Math.Min(CreateOptions().BinCount - 1, expectedBin + 2));
     }
 
-    [Theory]
-    [InlineData("baseline")]
-    [InlineData("hard-gap-raw")]
-    [InlineData("hard-gap-period-normalized")]
-    public void PushPcm16_ExactZeroInput_ProducesZeroSpectrum(string variantName)
+    [Fact]
+    public void PushPcm16_ExactZeroInput_ProducesZeroSpectrum()
     {
-        var analyzer = CreateAnalyzer(variantName);
+        var analyzer = CreateAnalyzer();
         var pcm = new byte[SampleCount * sizeof(short)];
 
         var fired = analyzer.PushPcm16(pcm, CreateMonoPcm16Format(), out var frame);
@@ -47,13 +42,10 @@ public sealed class LiveSpectrumAnalyzerTests
         Assert.All(frame.Result.Spectrum, value => Assert.Equal(0f, value));
     }
 
-    [Theory]
-    [InlineData("baseline")]
-    [InlineData("hard-gap-raw")]
-    [InlineData("hard-gap-period-normalized")]
-    public void PushPcm16_ConstantOffsetInput_ProducesZeroSpectrum(string variantName)
+    [Fact]
+    public void PushPcm16_ConstantOffsetInput_ProducesZeroSpectrum()
     {
-        var analyzer = CreateAnalyzer(variantName);
+        var analyzer = CreateAnalyzer();
         var samples = new float[SampleCount];
         Array.Fill(samples, 0.25f);
 
@@ -70,7 +62,7 @@ public sealed class LiveSpectrumAnalyzerTests
     [Fact]
     public void PushPcm16_TinyQuantizedNoise_RmsRoundsToZeroButSpectrumIsNotZero()
     {
-        var analyzer = CreateAnalyzer("baseline");
+        var analyzer = CreateAnalyzer();
         var pcm = CreateTinyNoisePcm16();
 
         var fired = analyzer.PushPcm16(pcm, CreateMonoPcm16Format(), out var frame);
@@ -87,7 +79,7 @@ public sealed class LiveSpectrumAnalyzerTests
     [Fact]
     public void MicrophoneSilenceGate_BelowThreshold_ZeroesSpectrum()
     {
-        var analyzer = CreateAnalyzer("baseline");
+        var analyzer = CreateAnalyzer();
         var fired = analyzer.PushPcm16(CreateTinyNoisePcm16(), CreateMonoPcm16Format(), out var frame);
 
         Assert.True(fired);
@@ -105,7 +97,7 @@ public sealed class LiveSpectrumAnalyzerTests
     [Fact]
     public void MicrophoneSilenceGate_AboveThreshold_LeavesFrameUntouched()
     {
-        var analyzer = CreateAnalyzer("baseline");
+        var analyzer = CreateAnalyzer();
         var pcm = Helpers.ToPcm16Bytes(Helpers.Sine(SampleRate, 1000f, SampleCount, amplitude: 0.8f));
         var fired = analyzer.PushPcm16(pcm, CreateMonoPcm16Format(), out var frame);
 
@@ -119,7 +111,7 @@ public sealed class LiveSpectrumAnalyzerTests
     [Fact]
     public void QuietFrame_UsesLowDisplayScale_ForShortBars()
     {
-        var analyzer = CreateAnalyzer("baseline");
+        var analyzer = CreateAnalyzer();
         var pcm = Helpers.ToPcm16Bytes(Helpers.Sine(SampleRate, 1000f, SampleCount, amplitude: 0.001f));
 
         var fired = analyzer.PushPcm16(pcm, CreateMonoPcm16Format(), out var frame);
@@ -138,7 +130,7 @@ public sealed class LiveSpectrumAnalyzerTests
     [Fact]
     public void MicrophoneSilenceGate_BelowThreshold_ProducesEmptyDisplay()
     {
-        var analyzer = CreateAnalyzer("baseline");
+        var analyzer = CreateAnalyzer();
         var fired = analyzer.PushPcm16(CreateTinyNoisePcm16(), CreateMonoPcm16Format(), out var frame);
 
         Assert.True(fired);
@@ -150,11 +142,10 @@ public sealed class LiveSpectrumAnalyzerTests
         Assert.All(heights, value => Assert.Equal(0, value));
     }
 
-    private static LiveSpectrumAnalyzer CreateAnalyzer(string variantName)
+    private static LiveSpectrumAnalyzer CreateAnalyzer()
     {
         return new LiveSpectrumAnalyzer(
             CreateOptions(),
-            ExperimentVariantCli.Parse(variantName),
             analysisWindowSamples: SampleCount,
             hopSamples: SampleCount);
     }

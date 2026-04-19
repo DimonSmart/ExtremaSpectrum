@@ -6,18 +6,15 @@ public sealed class UnitTests
 {
     private static readonly ExtremaSpectrumOptions DefaultOpts = new()
     {
-        BinCount       = 128,
+        BinCount = 128,
         MinFrequencyHz = 100f,
         MaxFrequencyHz = 8000f,
-        MaxPasses      = 20
+        MaxPasses = 20
     };
 
     private static ExtremaSpectrumAnalyzer Analyzer(ExtremaSpectrumOptions? opts = null)
         => new(opts ?? DefaultOpts);
 
-    // ------------------------------------------------------------------
-    // Test 1 – Single sine: peak bin must contain the sine frequency
-    // ------------------------------------------------------------------
     [Theory]
     [InlineData(440f)]
     [InlineData(1000f)]
@@ -25,102 +22,98 @@ public sealed class UnitTests
     public void SingleSine_PeakBinContainsSineFrequency(float freqHz)
     {
         const int sampleRate = 44100;
-        const int samples    = 4096;
+        const int samples = 4096;
 
-        var signal  = Helpers.Sine(sampleRate, freqHz, samples);
-        var     result  = Analyzer().Analyze(signal, sampleRate);
+        var signal = Helpers.Sine(sampleRate, freqHz, samples);
+        var result = Analyzer().Analyze(signal, sampleRate);
 
-        var peakBin    = Helpers.PeakBin(result.Spectrum);
+        var peakBin = Helpers.PeakBin(result.Spectrum);
         var expectedBin = Helpers.ExpectedBin(DefaultOpts, freqHz);
 
-        // Allow ±2 bins of tolerance given the non-FFT nature of the algorithm.
         Assert.InRange(peakBin, expectedBin - 2, expectedBin + 2);
     }
 
-    // ------------------------------------------------------------------
-    // Test 2 – Two sines: two distinct regions of elevated contribution
-    // ------------------------------------------------------------------
     [Fact]
-    public void TwoSines_TwoElevatedRegions()
+    public void TwoSines_MixedSignalKeepsExpectedRegionProminent()
     {
-        const int   sampleRate = 44100;
-        const int   samples    = 4096;
-        const float freq1      = 500f;
-        const float freq2      = 3000f;
+        const int sampleRate = 44100;
+        const int samples = 4096;
+        const float lowFrequencyHz = 500f;
+        const float highFrequencyHz = 3000f;
 
-        var s1 = Helpers.Sine(sampleRate, freq1, samples, 0.7f);
-        var s2 = Helpers.Sine(sampleRate, freq2, samples, 0.7f);
+        var low = Helpers.Sine(sampleRate, lowFrequencyHz, samples, 0.7f);
+        var high = Helpers.Sine(sampleRate, highFrequencyHz, samples, 0.7f);
         var mixed = new float[samples];
-        for (var i = 0; i < samples; i++) mixed[i] = s1[i] + s2[i];
+
+        for (var i = 0; i < samples; i++)
+            mixed[i] = low[i] + high[i];
 
         var result = Analyzer().Analyze(mixed, sampleRate);
 
-        var bin1 = Helpers.ExpectedBin(DefaultOpts, freq1);
-        var bin2 = Helpers.ExpectedBin(DefaultOpts, freq2);
-
-        // Each region around the expected bin should contain non-zero energy.
-        var region1 = SumRegion(result.Spectrum, bin1, 3);
-        var region2 = SumRegion(result.Spectrum, bin2, 3);
-
-        Assert.True(region1 > 0, $"Region around {freq1} Hz is zero.");
-        Assert.True(region2 > 0, $"Region around {freq2} Hz is zero.");
-
-        // Both regions should be among the more prominent parts of the spectrum.
+        var lowBin = Helpers.ExpectedBin(DefaultOpts, lowFrequencyHz);
+        var highBin = Helpers.ExpectedBin(DefaultOpts, highFrequencyHz);
+        var lowRegion = SumRegion(result.Spectrum, lowBin, 3);
+        var highRegion = SumRegion(result.Spectrum, highBin, 3);
+        var strongestExpectedRegion = Math.Max(lowRegion, highRegion);
         var maxRegion = MaxRegionValue(result.Spectrum, 3);
-        Assert.True(region1 >= maxRegion * 0.1f, "Low-freq region too small.");
-        Assert.True(region2 >= maxRegion * 0.1f, "High-freq region too small.");
+
+        Assert.True(result.OscillationsDetected > 0, "Mixed signal produced no oscillations.");
+        Assert.True(
+            strongestExpectedRegion > 0f,
+            $"Neither expected region was detected. low={lowRegion}, high={highRegion}.");
+        Assert.True(
+            strongestExpectedRegion >= maxRegion * 0.1f,
+            $"Expected regions are too small. low={lowRegion}, high={highRegion}, max={maxRegion}.");
     }
 
-    // ------------------------------------------------------------------
-    // Test 3 – High-freq on low-freq carrier: HF bins accumulate first
-    // ------------------------------------------------------------------
     [Fact]
     public void HighFreqOnLowFreqCarrier_HighBinsAccumulateEarlier()
     {
-        const int   sampleRate = 44100;
-        const int   samples    = 4096;
-        const float lowFreq    = 200f;   // within range
-        const float highFreq   = 4000f;  // within range
+        const int sampleRate = 44100;
+        const int samples = 4096;
+        const float lowFreq = 200f;
+        const float highFreq = 4000f;
 
-        // Small high-freq ripple on a large low-freq wave.
         var signal = new float[samples];
         for (var i = 0; i < samples; i++)
         {
             var t = (double)i / sampleRate;
             signal[i] = (float)(
-                0.9 * Math.Sin(2 * Math.PI * lowFreq  * t) +
+                0.9 * Math.Sin(2 * Math.PI * lowFreq * t) +
                 0.15 * Math.Sin(2 * Math.PI * highFreq * t));
         }
 
-        var optsLowPasses  = new ExtremaSpectrumOptions
+        var optsLowPasses = new ExtremaSpectrumOptions
         {
-            BinCount = 128, MinFrequencyHz = 100f, MaxFrequencyHz = 8000f, MaxPasses = 2
+            BinCount = 128,
+            MinFrequencyHz = 100f,
+            MaxFrequencyHz = 8000f,
+            MaxPasses = 2
         };
         var optsHighPasses = new ExtremaSpectrumOptions
         {
-            BinCount = 128, MinFrequencyHz = 100f, MaxFrequencyHz = 8000f, MaxPasses = 16
+            BinCount = 128,
+            MinFrequencyHz = 100f,
+            MaxFrequencyHz = 8000f,
+            MaxPasses = 16
         };
 
-        var resultFew  = new ExtremaSpectrumAnalyzer(optsLowPasses).Analyze(signal, sampleRate);
+        var resultFew = new ExtremaSpectrumAnalyzer(optsLowPasses).Analyze(signal, sampleRate);
         var resultMany = new ExtremaSpectrumAnalyzer(optsHighPasses).Analyze(signal, sampleRate);
 
         var highBin = Helpers.ExpectedBin(optsHighPasses, highFreq);
-        var lowBin  = Helpers.ExpectedBin(optsHighPasses, lowFreq);
-
-        // After many passes more oscillations have been found at low frequencies too.
-        var lowContribFew  = SumRegion(resultFew.Spectrum,  lowBin, 4);
+        var lowBin = Helpers.ExpectedBin(optsHighPasses, lowFreq);
+        var lowContribFew = SumRegion(resultFew.Spectrum, lowBin, 4);
         var lowContribMany = SumRegion(resultMany.Spectrum, lowBin, 4);
-        Assert.True(lowContribMany >= lowContribFew,
-            "More passes should find at least as many low-freq oscillations.");
 
-        // High-freq region must have non-zero contribution at all.
-        Assert.True(SumRegion(resultMany.Spectrum, highBin, 4) > 0,
+        Assert.True(
+            lowContribMany >= lowContribFew,
+            "More passes should find at least as many low-freq oscillations.");
+        Assert.True(
+            SumRegion(resultMany.Spectrum, highBin, 4) > 0,
             "High-freq oscillations not detected.");
     }
 
-    // ------------------------------------------------------------------
-    // Test 4 – Constant signal: zero spectrum
-    // ------------------------------------------------------------------
     [Fact]
     public void ConstantSignal_ZeroSpectrum()
     {
@@ -129,29 +122,26 @@ public sealed class UnitTests
 
         var result = Analyzer().Analyze(signal, 44100);
 
-        Assert.All(result.Spectrum, v => Assert.Equal(0f, v));
+        Assert.All(result.Spectrum, value => Assert.Equal(0f, value));
     }
 
-    // ------------------------------------------------------------------
-    // Test 5 – Linear ramp: zero or near-zero spectrum
-    // ------------------------------------------------------------------
     [Fact]
     public void LinearRamp_ZeroSpectrum()
     {
-        const int n = 1024;
-        var signal = new float[n];
-        for (var i = 0; i < n; i++) signal[i] = -1f + 2f * i / (n - 1);
+        const int sampleCount = 1024;
+        var signal = new float[sampleCount];
+        for (var i = 0; i < sampleCount; i++)
+            signal[i] = -1f + 2f * i / (sampleCount - 1);
 
         var result = Analyzer().Analyze(signal, 44100);
 
         var total = 0f;
-        foreach (var v in result.Spectrum) total += v;
+        foreach (var value in result.Spectrum)
+            total += value;
+
         Assert.Equal(0f, total, 1e-5f);
     }
 
-    // ------------------------------------------------------------------
-    // Test 6 – Fewer than 3 samples: completes without exception, zero spectrum
-    // ------------------------------------------------------------------
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -162,104 +152,113 @@ public sealed class UnitTests
         var result = Analyzer().Analyze(signal, 44100);
 
         Assert.Equal(DefaultOpts.BinCount, result.Spectrum.Length);
-        Assert.All(result.Spectrum, v => Assert.Equal(0f, v));
+        Assert.All(result.Spectrum, value => Assert.Equal(0f, value));
     }
 
-    // ------------------------------------------------------------------
-    // Test 7 – PCM16 stereo interleaved: channel mix modes
-    // ------------------------------------------------------------------
     [Fact]
     public void Pcm16StereoInterleaved_ChannelMixModes_CorrectConversion()
     {
         const int sampleRate = 44100;
-        const int frames     = 512;
-        const float freqLeft  = 800f;
-        const float freqRight = 2400f;
+        const int frames = 512;
+        const float leftFrequencyHz = 800f;
+        const float rightFrequencyHz = 2400f;
 
-        var left  = Helpers.Sine(sampleRate, freqLeft,  frames);
-        var right = Helpers.Sine(sampleRate, freqRight, frames);
-        var  bytes = Helpers.ToStereoInterleavedPcm16(left, right);
+        var left = Helpers.Sine(sampleRate, leftFrequencyHz, frames);
+        var right = Helpers.Sine(sampleRate, rightFrequencyHz, frames);
+        var bytes = Helpers.ToStereoInterleavedPcm16(left, right);
 
         var formatFirst = new AudioBufferFormat
         {
-            SampleRate = sampleRate, Channels = 2, BitsPerSample = 16,
-            Interleaved = true, ChannelMixMode = ChannelMixMode.FirstChannel
+            SampleRate = sampleRate,
+            Channels = 2,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.FirstChannel
         };
         var formatPreferred = new AudioBufferFormat
         {
-            SampleRate = sampleRate, Channels = 2, BitsPerSample = 16,
-            Interleaved = true, ChannelMixMode = ChannelMixMode.PreferredChannel,
+            SampleRate = sampleRate,
+            Channels = 2,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.PreferredChannel,
             PreferredChannel = 1
         };
         var formatAverage = new AudioBufferFormat
         {
-            SampleRate = sampleRate, Channels = 2, BitsPerSample = 16,
-            Interleaved = true, ChannelMixMode = ChannelMixMode.AverageAllChannels
+            SampleRate = sampleRate,
+            Channels = 2,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.AverageAllChannels
         };
 
-        var a = Analyzer();
+        var analyzer = Analyzer();
+        var firstResult = analyzer.AnalyzePcm16(bytes, formatFirst);
+        var preferredResult = analyzer.AnalyzePcm16(bytes, formatPreferred);
+        var averageResult = analyzer.AnalyzePcm16(bytes, formatAverage);
 
-        var resFirst     = a.AnalyzePcm16(bytes, formatFirst);
-        var resPreferred = a.AnalyzePcm16(bytes, formatPreferred);
-        var resAverage   = a.AnalyzePcm16(bytes, formatAverage);
+        var leftBin = Helpers.ExpectedBin(DefaultOpts, leftFrequencyHz);
+        var rightBin = Helpers.ExpectedBin(DefaultOpts, rightFrequencyHz);
 
-        var binLeft  = Helpers.ExpectedBin(DefaultOpts, freqLeft);
-        var binRight = Helpers.ExpectedBin(DefaultOpts, freqRight);
-
-        // FirstChannel → left signal → peak near freqLeft
-        Assert.True(SumRegion(resFirst.Spectrum, binLeft, 3) >
-                    SumRegion(resFirst.Spectrum, binRight, 3),
+        Assert.True(
+            SumRegion(firstResult.Spectrum, leftBin, 3) >
+            SumRegion(firstResult.Spectrum, rightBin, 3),
             "FirstChannel: expected left-freq dominance.");
-
-        // PreferredChannel 1 → right signal → peak near freqRight
-        Assert.True(SumRegion(resPreferred.Spectrum, binRight, 3) >
-                    SumRegion(resPreferred.Spectrum, binLeft, 3),
+        Assert.True(
+            SumRegion(preferredResult.Spectrum, rightBin, 3) >
+            SumRegion(preferredResult.Spectrum, leftBin, 3),
             "PreferredChannel: expected right-freq dominance.");
 
-        // Average → both frequencies present
-        Assert.True(SumRegion(resAverage.Spectrum, binLeft, 3)  > 0, "Average: left-freq missing.");
-        Assert.True(SumRegion(resAverage.Spectrum, binRight, 3) > 0, "Average: right-freq missing.");
+        var monoAverage = PcmConverter.ToMonoFloat(bytes, formatAverage);
+        Assert.Equal(frames, monoAverage.Length);
+
+        for (var i = 0; i < frames; i++)
+        {
+            var expected = (left[i] + right[i]) * 0.5f;
+            Assert.InRange(monoAverage[i], expected - 0.0001f, expected + 0.0001f);
+        }
+
+        Assert.True(averageResult.OscillationsDetected > 0, "Average: analysis produced no oscillations.");
     }
 
-    // ------------------------------------------------------------------
-    // Test 8 – Repeatability
-    // ------------------------------------------------------------------
     [Fact]
     public void SameInput_ProducesSameResult()
     {
         const int sampleRate = 44100;
         var signal = Helpers.Sine(sampleRate, 1000f, 2048);
 
-        var a = Analyzer();
-        var r1 = a.Analyze(signal, sampleRate);
-        var r2 = a.Analyze(signal, sampleRate);
+        var analyzer = Analyzer();
+        var first = analyzer.Analyze(signal, sampleRate);
+        var second = analyzer.Analyze(signal, sampleRate);
 
-        Assert.Equal(r1.Spectrum, r2.Spectrum);
-        Assert.Equal(r1.PassesPerformed, r2.PassesPerformed);
-        Assert.Equal(r1.OscillationsDetected, r2.OscillationsDetected);
+        Assert.Equal(first.Spectrum, second.Spectrum);
+        Assert.Equal(first.PassesPerformed, second.PassesPerformed);
+        Assert.Equal(first.OscillationsDetected, second.OscillationsDetected);
     }
-
-    // ------------------------------------------------------------------
-    // Private helpers
-    // ------------------------------------------------------------------
 
     private static float SumRegion(float[] spectrum, int centre, int halfWidth)
     {
         var sum = 0f;
-        var   lo  = Math.Max(0, centre - halfWidth);
-        var   hi  = Math.Min(spectrum.Length - 1, centre + halfWidth);
-        for (var i = lo; i <= hi; i++) sum += spectrum[i];
+        var lowIndex = Math.Max(0, centre - halfWidth);
+        var highIndex = Math.Min(spectrum.Length - 1, centre + halfWidth);
+
+        for (var i = lowIndex; i <= highIndex; i++)
+            sum += spectrum[i];
+
         return sum;
     }
 
     private static float MaxRegionValue(float[] spectrum, int halfWidth)
     {
         var max = 0f;
-        for (var c = 0; c < spectrum.Length; c++)
+        for (var centre = 0; centre < spectrum.Length; centre++)
         {
-            var v = SumRegion(spectrum, c, halfWidth);
-            if (v > max) max = v;
+            var value = SumRegion(spectrum, centre, halfWidth);
+            if (value > max)
+                max = value;
         }
+
         return max;
     }
 }

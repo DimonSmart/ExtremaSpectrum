@@ -1,0 +1,10 @@
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "data\demo-note.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\sine-0440hz.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\sine-1000hz.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\sine-2600hz.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0440-1000-equal.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0440-1000-2600-equal.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0440-1000-2600-descending.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0350-1100-3200-equal.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0440-0880-1760-descending.wav" --bins 30
+dotnet run --project src\ExtremaSpectrum.Demo -- --input "tests\ExtremaSpectrum.Tests\TestData\mix-0500-1500-3500-equal.wav" --bins 30

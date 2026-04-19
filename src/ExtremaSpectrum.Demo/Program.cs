@@ -26,12 +26,10 @@ internal static class Program
                     $"Min frequency must be below Nyquist ({waveFile.NyquistHz.ToString("F1", CultureInfo.InvariantCulture)} Hz).");
 
             var analysisOptions = CreateAnalysisOptions(options, waveFile.SampleRate);
-            var analyzer = options.ExperimentVariant == ExtremaExperimentVariant.Baseline
-                ? new ExtremaSpectrumAnalyzer(analysisOptions)
-                : null;
-
-            var segments = AnalyzeSegments(waveFile, analyzer, analysisOptions, options);
+            var analyzer = new ExtremaSpectrumAnalyzer(analysisOptions);
+            var segments = AnalyzeSegments(waveFile, analyzer, options);
             SpectrumConsoleRenderer.Render(options, waveFile, segments);
+            ExportStepImagesIfRequested(options, waveFile, segments);
             return 0;
         }
         catch (Exception ex)
@@ -43,13 +41,13 @@ internal static class Program
 
     private static IReadOnlyList<SpectrumSegment> AnalyzeSegments(
         WaveFile waveFile,
-        ExtremaSpectrumAnalyzer? analyzer,
-        ExtremaSpectrumOptions analysisOptions,
+        ExtremaSpectrumAnalyzer analyzer,
         SegmentedSpectrumOptions options)
     {
         var windowSamples = options.WindowSamples(waveFile.SampleRate);
         var hopSamples = options.HopSamples(waveFile.SampleRate);
         var segments = new List<SpectrumSegment>();
+        var requiresDetailedReport = options.DumpPasses || options.StepImageOutputDirectory is not null;
 
         for (var startSample = 0; startSample < waveFile.FrameCount; startSample += hopSamples)
         {
@@ -58,21 +56,21 @@ internal static class Program
                 break;
 
             var segmentSamples = waveFile.Samples.AsSpan(startSample, sampleCount);
-            var result = options.ExperimentVariant == ExtremaExperimentVariant.Baseline
-                ? analyzer!.Analyze(segmentSamples, waveFile.SampleRate)
-                : AnalysisResultFactory.FromExperimentReport(
-                    ExtremaExperimentRunner.Analyze(
-                        segmentSamples,
-                        waveFile.SampleRate,
-                        analysisOptions,
-                        options.ExperimentVariant));
+            var analysisReport = requiresDetailedReport
+                ? analyzer.AnalyzeDetailed(segmentSamples, waveFile.SampleRate)
+                : null;
+
+            var result = analysisReport is null
+                ? analyzer.Analyze(segmentSamples, waveFile.SampleRate)
+                : AnalysisResultFactory.FromAnalysisReport(analysisReport);
 
             segments.Add(new SpectrumSegment
             {
                 Index = segments.Count,
                 StartSample = startSample,
                 SampleCount = sampleCount,
-                Result = result
+                Result = result,
+                DetailedReport = analysisReport
             });
         }
 
@@ -89,13 +87,16 @@ internal static class Program
         var microphoneBufferMilliseconds = 50;
         float microphoneSilenceRmsThreshold = 0.0005f;
         float microphoneDisplayReferenceRms = 0.01f;
-        var experimentVariant = ExtremaExperimentVariant.Baseline;
+        var accumulationMode = AccumulationMode.Amplitude;
         float minFrequencyHz = 100f;
+        float minAmplitude = 0f;
         double windowSeconds = 5d;
         double overlapSeconds = 1d;
         var binCount = 20;
         var chartHeight = 12;
         var maxPasses = 12;
+        var dumpPasses = false;
+        string? stepImageOutputDirectory = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -144,13 +145,16 @@ internal static class Program
                     microphoneDisplayReferenceRms = ParsePositiveFloat(RequireValue(args, ref i, arg), arg);
                     break;
 
-                case "--experiment-variant":
-                case "--variant":
-                    experimentVariant = ExperimentVariantCli.Parse(RequireValue(args, ref i, arg));
-                    break;
-
                 case "--min-frequency":
                     minFrequencyHz = ParseNonNegativeFloat(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--min-amplitude":
+                    minAmplitude = ParseNonNegativeFloat(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--accumulation":
+                    accumulationMode = AccumulationModeCli.Parse(RequireValue(args, ref i, arg));
                     break;
 
                 case "--window-seconds":
@@ -173,6 +177,14 @@ internal static class Program
                     maxPasses = ParsePositiveInt(RequireValue(args, ref i, arg), arg);
                     break;
 
+                case "--dump-passes":
+                    dumpPasses = true;
+                    break;
+
+                case "--export-step-images":
+                    stepImageOutputDirectory = Path.GetFullPath(RequireValue(args, ref i, arg));
+                    break;
+
                 default:
                     if (arg.StartsWith("-", StringComparison.Ordinal))
                         throw new ArgumentException($"Unknown argument '{arg}'. Use --help for usage.");
@@ -184,6 +196,8 @@ internal static class Program
 
         if (overlapSeconds >= windowSeconds)
             throw new ArgumentException("Overlap must be smaller than the window size.");
+        if (useMicrophone && stepImageOutputDirectory is not null)
+            throw new ArgumentException("--export-step-images is supported only for file input.");
 
         return new SegmentedSpectrumOptions
         {
@@ -195,13 +209,16 @@ internal static class Program
             MicrophoneBufferMilliseconds = microphoneBufferMilliseconds,
             MicrophoneSilenceRmsThreshold = microphoneSilenceRmsThreshold,
             MicrophoneDisplayReferenceRms = microphoneDisplayReferenceRms,
-            ExperimentVariant = experimentVariant,
+            AccumulationMode = accumulationMode,
             MinFrequencyHz = minFrequencyHz,
+            MinAmplitude = minAmplitude,
             WindowSeconds = windowSeconds,
             OverlapSeconds = overlapSeconds,
             BinCount = binCount,
             ChartHeight = chartHeight,
-            MaxPasses = maxPasses
+            MaxPasses = maxPasses,
+            DumpPasses = dumpPasses,
+            StepImageOutputDirectory = stepImageOutputDirectory
         };
     }
 
@@ -283,11 +300,12 @@ internal static class Program
         AnsiConsole.MarkupLine("[grey]Analyzes a WAV file in overlapping windows and prints equalizer-like histograms.[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Usage:");
-        AnsiConsole.WriteLine("  dotnet run --project src/ExtremaSpectrum.Demo -- [--input PATH] [--microphone] [--list-input-devices] [--device-index N] [--microphone-sample-rate HZ] [--buffer-milliseconds N] [--silence-rms-threshold VALUE] [--display-reference-rms VALUE] [--experiment-variant NAME] [--min-frequency HZ] [--window-seconds N] [--overlap-seconds N] [--bins N] [--height N] [--passes N]");
-        AnsiConsole.WriteLine("  variants: baseline, hard-gap-raw, hard-gap-period-normalized");
+        AnsiConsole.WriteLine("  dotnet run --project src/ExtremaSpectrum.Demo -- [--input PATH] [--microphone] [--list-input-devices] [--device-index N] [--microphone-sample-rate HZ] [--buffer-milliseconds N] [--silence-rms-threshold VALUE] [--display-reference-rms VALUE] [--accumulation NAME] [--min-frequency HZ] [--min-amplitude VALUE] [--window-seconds N] [--overlap-seconds N] [--bins N] [--height N] [--passes N] [--dump-passes] [--export-step-images DIR]");
+        AnsiConsole.WriteLine("  accumulation: amplitude, energy");
         AnsiConsole.WriteLine("  microphone: use --microphone to capture live audio, Ctrl+C to stop");
         AnsiConsole.WriteLine("  silence gate: --silence-rms-threshold 0 disables it");
         AnsiConsole.WriteLine("  live display scaling: --display-reference-rms 0.01 maps that RMS to full chart height");
+        AnsiConsole.WriteLine("  export-step-images: writes SVG files showing the waveform before and after each pass");
     }
 
     private static ExtremaSpectrumOptions CreateAnalysisOptions(
@@ -300,7 +318,8 @@ internal static class Program
             MinFrequencyHz = options.MinFrequencyHz,
             MaxFrequencyHz = sampleRate / 2f,
             MaxPasses = options.MaxPasses,
-            AccumulationMode = AccumulationMode.Amplitude
+            MinAmplitude = options.MinAmplitude,
+            AccumulationMode = options.AccumulationMode
         };
     }
 
@@ -321,7 +340,6 @@ internal static class Program
 
         var liveAnalyzer = new LiveSpectrumAnalyzer(
             analysisOptions,
-            options.ExperimentVariant,
             options.WindowSamples(options.MicrophoneSampleRate),
             options.HopSamples(options.MicrophoneSampleRate));
 
@@ -453,6 +471,24 @@ internal static class Program
             throw new InvalidOperationException(errorText);
 
         return 0;
+    }
+
+    private static void ExportStepImagesIfRequested(
+        SegmentedSpectrumOptions options,
+        WaveFile waveFile,
+        IReadOnlyList<SpectrumSegment> segments)
+    {
+        if (options.StepImageOutputDirectory is null)
+            return;
+
+        var exportedFiles = WaveformStepSvgExporter.Export(
+            options.StepImageOutputDirectory,
+            options.InputPath,
+            waveFile,
+            segments);
+
+        AnsiConsole.MarkupLine(
+            $"[grey]SVG steps exported:[/] {exportedFiles.Count} -> {Markup.Escape(options.StepImageOutputDirectory)}");
     }
 
     private static void PrintInputDevices()

@@ -10,6 +10,8 @@ internal sealed class SpectrumSegment
 
     public required AnalysisResult Result { get; init; }
 
+    public ExtremaAnalysisReport? DetailedReport { get; init; }
+
     public TimeSpan StartTime(int sampleRate) => TimeSpan.FromSeconds((double)StartSample / sampleRate);
 
     public TimeSpan EndTime(int sampleRate) => TimeSpan.FromSeconds((double)(StartSample + SampleCount) / sampleRate);

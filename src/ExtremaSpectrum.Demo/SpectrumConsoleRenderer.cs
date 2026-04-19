@@ -71,6 +71,48 @@ internal static class SpectrumConsoleRenderer
                 $"{result.BinStartHz[index] / 1000f:0.0}-{result.BinEndHz[index] / 1000f:0.0} kHz")));
     }
 
+    internal static IReadOnlyList<string> BuildPassDiagnostics(ExtremaAnalysisReport report)
+    {
+        var lines = new List<string>(report.PassesPerformed + 1)
+        {
+            $"Диагностика проходов: total={report.TotalContribution.ToString("0.###", CultureInfo.InvariantCulture)}, avg/osc={(report.OscillationsDetected > 0 ? (report.TotalContribution / report.OscillationsDetected).ToString("0.######", CultureInfo.InvariantCulture) : "0")}"
+        };
+
+        for (var passIndex = 0; passIndex < report.PassSpectra.Count; passIndex++)
+        {
+            var passSpectrum = report.PassSpectra[passIndex];
+            var passContribution = passSpectrum.Sum();
+            var oscillationCount = report.OscillationsPerPass[passIndex];
+            var averageContribution = oscillationCount > 0 ? passContribution / oscillationCount : 0f;
+
+            var topBinIndex = 0;
+            for (var binIndex = 1; binIndex < passSpectrum.Length; binIndex++)
+            {
+                if (passSpectrum[binIndex] > passSpectrum[topBinIndex])
+                    topBinIndex = binIndex;
+            }
+
+            var topBinContribution = passSpectrum[topBinIndex];
+            var topBinShare = passContribution > 0f
+                ? topBinContribution / passContribution * 100f
+                : 0f;
+
+            var activeBins = 0;
+            for (var binIndex = 0; binIndex < passSpectrum.Length; binIndex++)
+            {
+                if (passSpectrum[binIndex] > 0f)
+                    activeBins++;
+            }
+
+            lines.Add(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"  проход {passIndex + 1}: osc={oscillationCount}, total={passContribution:0.###}, avg/osc={averageContribution:0.######}, top={report.BinStartHz[topBinIndex] / 1000f:0.0}-{report.BinEndHz[topBinIndex] / 1000f:0.0} kHz ({topBinShare:0.0}%), activeBins={activeBins}"));
+        }
+
+        return lines;
+    }
+
     public static void Render(
         SegmentedSpectrumOptions options,
         WaveFile waveFile,
@@ -86,9 +128,11 @@ internal static class SpectrumConsoleRenderer
         summary.AddRow("Файл", Markup.Escape(options.InputPath));
         summary.AddRow("Формат", $"{waveFile.SampleRate} Hz, {waveFile.Channels} ch, {waveFile.BitsPerSample} bit");
         summary.AddRow("Длительность", $"{waveFile.Duration.TotalSeconds:F3} s");
-        summary.AddRow("Вариант", ExperimentVariantCli.ToDisplayName(options.ExperimentVariant));
+        summary.AddRow("Алгоритм", "HardGapRaw");
+        summary.AddRow("Накопление", AccumulationModeCli.ToDisplayName(options.AccumulationMode));
         summary.AddRow("Окно / перекрытие", $"{options.WindowSeconds:F1} s / {options.OverlapSeconds:F1} s");
         summary.AddRow("Шаг анализа", $"{options.HopSeconds:F1} s");
+        summary.AddRow("Min amplitude", options.MinAmplitude.ToString("0.####", CultureInfo.InvariantCulture));
         summary.AddRow("Бакеты", options.BinCount.ToString(CultureInfo.InvariantCulture));
         summary.AddRow("Диапазон", $"{options.MinFrequencyHz / 1000f:F1} - {waveFile.NyquistHz / 1000f:F1} kHz");
 
@@ -115,6 +159,13 @@ internal static class SpectrumConsoleRenderer
 
             var peaks = BuildPeakSummary(segment.Result, count: 3);
             AnsiConsole.MarkupLine($"[grey]Пики:[/] {Markup.Escape(peaks)}");
+
+            if (options.DumpPasses && segment.DetailedReport is not null)
+            {
+                foreach (var line in BuildPassDiagnostics(segment.DetailedReport))
+                    AnsiConsole.MarkupLine($"[grey]{Markup.Escape(line)}[/]");
+            }
+
             AnsiConsole.WriteLine();
         }
     }

@@ -2,9 +2,7 @@ namespace ExtremaSpectrum.Demo;
 
 internal sealed class LiveSpectrumAnalyzer
 {
-    private readonly ExtremaExperimentVariant _variant;
-    private readonly ExtremaSpectrumAnalyzer? _baselineAnalyzer;
-    private readonly ExtremaSpectrumOptions _options;
+    private readonly ExtremaSpectrumAnalyzer _analyzer;
     private readonly int _windowSamples;
     private readonly int _hopSamples;
 
@@ -13,7 +11,6 @@ internal sealed class LiveSpectrumAnalyzer
 
     public LiveSpectrumAnalyzer(
         ExtremaSpectrumOptions options,
-        ExtremaExperimentVariant variant,
         int analysisWindowSamples,
         int hopSamples)
     {
@@ -23,11 +20,7 @@ internal sealed class LiveSpectrumAnalyzer
         if (hopSamples < 1 || hopSamples > analysisWindowSamples)
             throw new ArgumentOutOfRangeException(nameof(hopSamples), "hopSamples must be in [1, analysisWindowSamples].");
 
-        _options = options;
-        _variant = variant;
-        _baselineAnalyzer = variant == ExtremaExperimentVariant.Baseline
-            ? new ExtremaSpectrumAnalyzer(options)
-            : null;
+        _analyzer = new ExtremaSpectrumAnalyzer(options);
         _windowSamples = analysisWindowSamples;
         _hopSamples = hopSamples;
         _buffer = new float[Math.Max(analysisWindowSamples * 2, 4096)];
@@ -45,10 +38,7 @@ internal sealed class LiveSpectrumAnalyzer
         var window = new float[_windowSamples];
         Array.Copy(_buffer, 0, window, 0, _windowSamples);
 
-        var result = _variant == ExtremaExperimentVariant.Baseline
-            ? _baselineAnalyzer!.Analyze(window, sampleRate)
-            : AnalysisResultFactory.FromExperimentReport(
-                ExtremaExperimentRunner.Analyze(window, sampleRate, _options, _variant));
+        var result = _analyzer.Analyze(window, sampleRate);
 
         frame = new LiveSpectrumFrame
         {

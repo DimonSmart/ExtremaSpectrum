@@ -58,6 +58,22 @@ public sealed class ExtremaSpectrumAnalyzer
     }
 
     /// <summary>
+    /// Analyses a mono float sample array and returns detailed per-pass trace data.
+    /// </summary>
+    /// <param name="samples">Normalised audio samples in the range [-1.0, +1.0].</param>
+    /// <param name="sampleRate">Sample rate in Hz. Must be &gt; 0.</param>
+    /// <returns>The detailed analysis report.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sampleRate"/> is &lt;= 0.</exception>
+    public ExtremaAnalysisReport AnalyzeDetailed(ReadOnlySpan<float> samples, int sampleRate)
+    {
+        if (sampleRate <= 0)
+            throw new ArgumentOutOfRangeException(nameof(sampleRate), "sampleRate must be > 0.");
+
+        var execution = ExtremaEngine.Execute(samples, sampleRate, _options, captureDetails: true);
+        return CreateDetailedReport(execution, sampleRate, samples.Length);
+    }
+
+    /// <summary>
     /// Analyses a raw PCM-16 (signed 16-bit little-endian) byte buffer.
     /// </summary>
     /// <param name="buffer">Raw PCM bytes. Length must be a multiple of blockAlign.</param>
@@ -91,9 +107,7 @@ public sealed class ExtremaSpectrumAnalyzer
     {
         var spectrum = new float[_options.BinCount];
 
-        var (passes, oscillations) = ExtremaEngine.Run(
-            samples, sampleRate, _options,
-            spectrum, _binStartHz, _binEndHz);
+        var (passes, oscillations) = ExtremaEngine.Run(samples, sampleRate, _options, spectrum);
 
         return new AnalysisResult
         {
@@ -105,6 +119,25 @@ public sealed class ExtremaSpectrumAnalyzer
             InputSampleCount    = samples.Length,
             PassesPerformed     = passes,
             OscillationsDetected = oscillations
+        };
+    }
+
+    private ExtremaAnalysisReport CreateDetailedReport(
+        ExtremaEngineExecutionResult execution,
+        int sampleRate,
+        int inputSampleCount)
+    {
+        return new ExtremaAnalysisReport
+        {
+            Spectrum = execution.TotalSpectrum,
+            BinStartHz = _binStartHz,
+            BinEndHz = _binEndHz,
+            BinCenterHz = _binCenterHz,
+            PassSpectra = execution.PassSpectra,
+            OscillationsPerPass = execution.OscillationsPerPass,
+            Passes = execution.Passes,
+            SampleRate = sampleRate,
+            InputSampleCount = inputSampleCount
         };
     }
 

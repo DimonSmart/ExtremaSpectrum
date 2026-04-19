@@ -2,7 +2,7 @@ namespace ExtremaSpectrum.Demo;
 
 internal static class AnalysisResultFactory
 {
-    internal static AnalysisResult FromExperimentReport(ExtremaExperimentReport report)
+    internal static AnalysisResult FromAnalysisReport(ExtremaAnalysisReport report)
     {
         return new AnalysisResult
         {

@@ -19,7 +19,7 @@ internal static class MicrophoneConsoleRenderer
 
         summary.AddRow("Source", "Microphone");
         summary.AddRow("Device", Markup.Escape(deviceName));
-        summary.AddRow("Variant", ExperimentVariantCli.ToDisplayName(options.ExperimentVariant));
+        summary.AddRow("Algorithm", "HardGapRaw");
         summary.AddRow("Sample rate", $"{options.MicrophoneSampleRate} Hz");
         summary.AddRow("Buffer", $"{options.MicrophoneBufferMilliseconds} ms");
         summary.AddRow(

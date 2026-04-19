@@ -6,20 +6,30 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Optimize>true</Optimize>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
 
     <!-- NuGet metadata -->
     <PackageId>ExtremaSpectrum</PackageId>
+    <Title>ExtremaSpectrum</Title>
     <Version>1.0.0</Version>
-    <Authors>SimpleSpectrum</Authors>
-    <Description>Audio signal analysis via extrema-based oscillation decomposition. Not an FFT spectrum — see README.</Description>
-    <PackageTags>audio;spectrum;analysis;dsp;extrema</PackageTags>
+    <Authors>DimonSmart</Authors>
+    <Company>DimonSmart</Company>
+    <Description>Audio signal analysis via extrema-based oscillation decomposition. Not an FFT spectrum - see README.</Description>
+    <PackageTags>audio;spectrum;analysis;dsp;extrema;signal-processing</PackageTags>
+    <PackageProjectUrl>https://github.com/DimonSmart/ExtremaSpectrum</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DimonSmart/ExtremaSpectrum</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>extrema-spectrum-icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\docs\readme-assets\*.svg" Pack="true" PackagePath="docs/readme-assets/" />
+    <None Include="..\..\docs\readme-assets\extrema-spectrum-icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

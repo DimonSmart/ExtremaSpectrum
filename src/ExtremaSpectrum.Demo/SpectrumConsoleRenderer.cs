@@ -48,7 +48,7 @@ internal static class SpectrumConsoleRenderer
         }
 
         builder.AppendLine();
-        builder.AppendLine("[grey]kHz (центры бакетов)[/]");
+        builder.AppendLine("[grey]kHz (bin centers)[/]");
 
         return builder.ToString();
     }
@@ -63,7 +63,7 @@ internal static class SpectrumConsoleRenderer
             .ToArray();
 
         if (topBins.Length == 0)
-            return "нет вкладов в выбранном диапазоне";
+            return "no contributions in the selected range";
 
         return string.Join(", ", topBins.Select(index =>
             string.Create(
@@ -75,7 +75,7 @@ internal static class SpectrumConsoleRenderer
     {
         var lines = new List<string>(report.PassesPerformed + 1)
         {
-            $"Диагностика проходов: total={report.TotalContribution.ToString("0.###", CultureInfo.InvariantCulture)}, avg/osc={(report.OscillationsDetected > 0 ? (report.TotalContribution / report.OscillationsDetected).ToString("0.######", CultureInfo.InvariantCulture) : "0")}"
+            $"Pass diagnostics: total={report.TotalContribution.ToString("0.###", CultureInfo.InvariantCulture)}, avg/osc={(report.OscillationsDetected > 0 ? (report.TotalContribution / report.OscillationsDetected).ToString("0.######", CultureInfo.InvariantCulture) : "0")}"
         };
 
         for (var passIndex = 0; passIndex < report.PassSpectra.Count; passIndex++)
@@ -107,7 +107,7 @@ internal static class SpectrumConsoleRenderer
             lines.Add(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"  проход {passIndex + 1}: osc={oscillationCount}, total={passContribution:0.###}, avg/osc={averageContribution:0.######}, top={report.BinStartHz[topBinIndex] / 1000f:0.0}-{report.BinEndHz[topBinIndex] / 1000f:0.0} kHz ({topBinShare:0.0}%), activeBins={activeBins}"));
+                    $"  pass {passIndex + 1}: osc={oscillationCount}, total={passContribution:0.###}, avg/osc={averageContribution:0.######}, top={report.BinStartHz[topBinIndex] / 1000f:0.0}-{report.BinEndHz[topBinIndex] / 1000f:0.0} kHz ({topBinShare:0.0}%), activeBins={activeBins}"));
         }
 
         return lines;
@@ -122,19 +122,19 @@ internal static class SpectrumConsoleRenderer
 
         var summary = new Table()
             .Border(TableBorder.Rounded)
-            .AddColumn("[grey]Параметр[/]")
-            .AddColumn("[grey]Значение[/]");
+            .AddColumn("[grey]Parameter[/]")
+            .AddColumn("[grey]Value[/]");
 
-        summary.AddRow("Файл", Markup.Escape(options.InputPath));
-        summary.AddRow("Формат", $"{waveFile.SampleRate} Hz, {waveFile.Channels} ch, {waveFile.BitsPerSample} bit");
-        summary.AddRow("Длительность", $"{waveFile.Duration.TotalSeconds:F3} s");
-        summary.AddRow("Алгоритм", "Extrema oscillation decomposition");
-        summary.AddRow("Накопление", AccumulationModeCli.ToDisplayName(options.AccumulationMode));
-        summary.AddRow("Окно / перекрытие", $"{options.WindowSeconds:F1} s / {options.OverlapSeconds:F1} s");
-        summary.AddRow("Шаг анализа", $"{options.HopSeconds:F1} s");
+        summary.AddRow("File", Markup.Escape(options.InputPath));
+        summary.AddRow("Format", $"{waveFile.SampleRate} Hz, {waveFile.Channels} ch, {waveFile.BitsPerSample} bit");
+        summary.AddRow("Duration", $"{waveFile.Duration.TotalSeconds:F3} s");
+        summary.AddRow("Algorithm", "Extrema oscillation decomposition");
+        summary.AddRow("Accumulation", AccumulationModeCli.ToDisplayName(options.AccumulationMode));
+        summary.AddRow("Window / overlap", $"{options.WindowSeconds:F1} s / {options.OverlapSeconds:F1} s");
+        summary.AddRow("Analysis step", $"{options.HopSeconds:F1} s");
         summary.AddRow("Min amplitude", options.MinAmplitude.ToString("0.####", CultureInfo.InvariantCulture));
-        summary.AddRow("Бакеты", options.BinCount.ToString(CultureInfo.InvariantCulture));
-        summary.AddRow("Диапазон", $"{options.MinFrequencyHz / 1000f:F1} - {waveFile.NyquistHz / 1000f:F1} kHz");
+        summary.AddRow("Bins", options.BinCount.ToString(CultureInfo.InvariantCulture));
+        summary.AddRow("Range", $"{options.MinFrequencyHz / 1000f:F1} - {waveFile.NyquistHz / 1000f:F1} kHz");
 
         AnsiConsole.Write(summary);
         AnsiConsole.WriteLine();
@@ -146,19 +146,19 @@ internal static class SpectrumConsoleRenderer
             var actualDuration = end - start;
 
             AnsiConsole.Write(new Rule(
-                $"[yellow]Окно {segment.Index + 1}[/] [grey]{FormatTimestamp(start)} - {FormatTimestamp(end)}[/]"));
+                $"[yellow]Window {segment.Index + 1}[/] [grey]{FormatTimestamp(start)} - {FormatTimestamp(end)}[/]"));
 
             AnsiConsole.MarkupLine(
-                $"[grey]Длина:[/] {actualDuration.TotalSeconds:F3} s   " +
-                $"[grey]Сэмплы:[/] {segment.SampleCount}   " +
-                $"[grey]Проходы:[/] {segment.Result.PassesPerformed}   " +
-                $"[grey]Осцилляции:[/] {segment.Result.OscillationsDetected}");
+                $"[grey]Length:[/] {actualDuration.TotalSeconds:F3} s   " +
+                $"[grey]Samples:[/] {segment.SampleCount}   " +
+                $"[grey]Passes:[/] {segment.Result.PassesPerformed}   " +
+                $"[grey]Oscillations:[/] {segment.Result.OscillationsDetected}");
 
             var chartMarkup = BuildChartMarkup(segment.Result, options.ChartHeight);
             AnsiConsole.Write(new Markup(chartMarkup));
 
             var peaks = BuildPeakSummary(segment.Result, count: 3);
-            AnsiConsole.MarkupLine($"[grey]Пики:[/] {Markup.Escape(peaks)}");
+            AnsiConsole.MarkupLine($"[grey]Peaks:[/] {Markup.Escape(peaks)}");
 
             if (options.DumpPasses && segment.DetailedReport is not null)
             {

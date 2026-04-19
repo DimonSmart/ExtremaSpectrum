@@ -34,7 +34,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Ошибка:[/] {Markup.Escape(ex.Message)}");
+            AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(ex.Message)}");
             return 1;
         }
     }
@@ -355,7 +355,7 @@ internal static class Program
         using var cts = new CancellationTokenSource();
         var sync = new object();
         LiveSpectrumFrame? latestFrame = null;
-        string statusText = "Нажмите Ctrl+C для остановки.";
+        string statusText = "Press Ctrl+C to stop.";
         string? errorText = null;
 
         using var waveIn = new WaveInEvent
@@ -389,7 +389,7 @@ internal static class Program
                 lock (sync)
                 {
                     errorText = ex.Message;
-                    statusText = "Ошибка во время анализа.";
+                    statusText = "Analysis error.";
                 }
 
                 cts.Cancel();
@@ -403,7 +403,7 @@ internal static class Program
                 lock (sync)
                 {
                     errorText = eventArgs.Exception.Message;
-                    statusText = "Запись остановлена с ошибкой.";
+                    statusText = "Recording stopped due to an error.";
                 }
             }
 
@@ -415,7 +415,7 @@ internal static class Program
         {
             eventArgs.Cancel = true;
             lock (sync)
-                statusText = "Остановка...";
+                statusText = "Stopping...";
             cts.Cancel();
         };
 
@@ -496,8 +496,8 @@ internal static class Program
         var table = new Table()
             .Border(TableBorder.Rounded)
             .AddColumn("[grey]Index[/]")
-            .AddColumn("[grey]Устройство[/]")
-            .AddColumn("[grey]Каналы[/]");
+            .AddColumn("[grey]Device[/]")
+            .AddColumn("[grey]Channels[/]");
 
         for (var i = 0; i < WaveInEvent.DeviceCount; i++)
         {
@@ -510,7 +510,7 @@ internal static class Program
 
         if (WaveInEvent.DeviceCount == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]Устройства ввода не найдены.[/]");
+            AnsiConsole.MarkupLine("[yellow]No input devices found.[/]");
             return;
         }
 

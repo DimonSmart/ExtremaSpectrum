@@ -101,6 +101,31 @@ public sealed class IntegrationTests
         Assert.True(sum2 > 0, "Second window spectrum is empty.");
     }
 
+    [Fact]
+    public void PushDetailed_SummaryMatchesRegularPush()
+    {
+        const int sampleRate = 44100;
+        const int windowSamples = 2048;
+        const int hopSamples = 512;
+
+        var regularAnalyzer = new StreamingExtremaSpectrumAnalyzer(Opts, windowSamples, hopSamples);
+        var detailedAnalyzer = new StreamingExtremaSpectrumAnalyzer(Opts, windowSamples, hopSamples);
+        var window = Helpers.Sine(sampleRate, 1000f, windowSamples, amplitude: 0.8f);
+
+        var regularFired = regularAnalyzer.Push(window, sampleRate, out var regularResult);
+        var detailedFired = detailedAnalyzer.PushDetailed(window, sampleRate, out var detailedResult);
+
+        Assert.True(regularFired);
+        Assert.True(detailedFired);
+        Assert.NotNull(regularResult);
+        Assert.NotNull(detailedResult);
+        Assert.Equal(regularResult!.Spectrum, detailedResult!.Spectrum);
+        Assert.Equal(regularResult.PassesPerformed, detailedResult.PassesPerformed);
+        Assert.Equal(regularResult.OscillationsDetected, detailedResult.OscillationsDetected);
+        Assert.Equal(detailedResult.PassesPerformed, detailedResult.PassSpectra.Count);
+        Assert.Equal(detailedResult.PassesPerformed, detailedResult.Passes.Count);
+    }
+
     // ------------------------------------------------------------------
     // Integration 4 – PCM16 streaming path works end-to-end
     // ------------------------------------------------------------------
@@ -137,5 +162,62 @@ public sealed class IntegrationTests
         }
 
         Assert.True(anyFired, "PCM16 streaming analysis never fired.");
+    }
+
+    [Fact]
+    public void PushDetailedPcm16_StreamingPathReturnsPerPassTrace()
+    {
+        const int sampleRate = 44100;
+        const int windowSamples = 2048;
+        const int hopSamples = 1024;
+        const int blockFrames = 512;
+
+        var analyzer = new StreamingExtremaSpectrumAnalyzer(Opts, windowSamples, hopSamples);
+        var format = new AudioBufferFormat
+        {
+            SampleRate = sampleRate,
+            Channels = 1,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.FirstChannel
+        };
+
+        var floatBlock = Helpers.Sine(sampleRate, 1000f, blockFrames);
+        var pcmBlock = Helpers.ToPcm16Bytes(floatBlock);
+
+        var anyFired = false;
+        for (var push = 0; push < 20; push++)
+        {
+            if (analyzer.PushDetailedPcm16(pcmBlock, format, out var result))
+            {
+                anyFired = true;
+                Assert.NotNull(result);
+                Assert.Equal(result!.PassesPerformed, result.PassSpectra.Count);
+                Assert.Equal(result.PassesPerformed, result.Passes.Count);
+                break;
+            }
+        }
+
+        Assert.True(anyFired, "Detailed PCM16 streaming analysis never fired.");
+    }
+
+    [Fact]
+    public void PushDetailedPcm16_InvalidPreferredChannel_ThrowsClearException()
+    {
+        var analyzer = new StreamingExtremaSpectrumAnalyzer(Opts, analysisWindowSamples: 8, hopSamples: 4);
+        var format = new AudioBufferFormat
+        {
+            SampleRate = 44100,
+            Channels = 2,
+            BitsPerSample = 16,
+            Interleaved = true,
+            ChannelMixMode = ChannelMixMode.PreferredChannel,
+            PreferredChannel = 2
+        };
+
+        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            analyzer.PushDetailedPcm16(new byte[4], format, out _));
+
+        Assert.Equal(nameof(AudioBufferFormat.PreferredChannel), error.ParamName);
     }
 }

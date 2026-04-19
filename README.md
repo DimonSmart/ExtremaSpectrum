@@ -37,6 +37,12 @@ if (analyzer.PushPcm16(buffer, format, out var result))
 {
     float[] spectrum = result!.Spectrum;
 }
+
+// If your UI renders pass-by-pass geometry on its own:
+if (analyzer.PushDetailedPcm16(buffer, format, out var report))
+{
+    IReadOnlyList<ExtremaPassSnapshot> passes = report!.Passes;
+}
 ```
 
 ---

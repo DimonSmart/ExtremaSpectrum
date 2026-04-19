@@ -179,7 +179,7 @@ public sealed class ExtremaSpectrumAnalyzer
                 "MaxFrequencyHz must be > MinFrequencyHz.");
     }
 
-    private static void ValidateFormat(AudioBufferFormat fmt, int expectedBitsPerSample)
+    internal static void ValidateFormat(AudioBufferFormat fmt, int expectedBitsPerSample)
     {
         if (fmt.SampleRate <= 0)
             throw new ArgumentOutOfRangeException(nameof(fmt.SampleRate), "SampleRate must be > 0.");

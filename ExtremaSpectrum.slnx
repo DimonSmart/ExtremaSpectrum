@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/ExtremaSpectrum/ExtremaSpectrum.csproj" />
-    <Project Path="src/ExtremaSpectrum.Demo/ExtremaSpectrum.Demo.csproj" />
+    <Project Path="src/DimonSmart.ExtremaSpectrum/DimonSmart.ExtremaSpectrum.csproj" />
+    <Project Path="src/DimonSmart.ExtremaSpectrum.Demo/DimonSmart.ExtremaSpectrum.Demo.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/ExtremaSpectrum.Tests/ExtremaSpectrum.Tests.csproj" />
+    <Project Path="tests/DimonSmart.ExtremaSpectrum.Tests/DimonSmart.ExtremaSpectrum.Tests.csproj" />
   </Folder>
 </Solution>

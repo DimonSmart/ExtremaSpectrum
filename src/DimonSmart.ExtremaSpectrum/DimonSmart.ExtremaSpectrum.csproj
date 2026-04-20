@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- NuGet metadata -->
+    <PackageId>DimonSmart.ExtremaSpectrum</PackageId>
+    <Title>DimonSmart.ExtremaSpectrum</Title>
+    <AssemblyName>DimonSmart.ExtremaSpectrum</AssemblyName>
+    <RootNamespace>DimonSmart.ExtremaSpectrum</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>DimonSmart</Authors>
+    <Company>DimonSmart</Company>
+    <Description>Audio signal analysis via extrema-based oscillation decomposition. Not an FFT spectrum - see README.</Description>
+    <PackageTags>audio;spectrum;analysis;dsp;extrema;signal-processing</PackageTags>
+    <PackageProjectUrl>https://github.com/DimonSmart/ExtremaSpectrum</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DimonSmart/ExtremaSpectrum</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>extrema-spectrum-icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\readme-assets\extrema-spectrum-icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

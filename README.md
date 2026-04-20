@@ -14,7 +14,7 @@ ExtremaSpectrum decomposes a waveform into local oscillations, making dominant f
 Try the demo with a low-frequency focused view:
 
 ```powershell
-dotnet run --project src\ExtremaSpectrum.Demo -- --min-frequency 0 --input ".\data\demo-low-010hz-plus-high-160hz.wav" --bins 180 --to-bin 20
+dotnet run --project src\DimonSmart.ExtremaSpectrum.Demo -- --min-frequency 0 --input ".\data\demo-low-010hz-plus-high-160hz.wav" --bins 180 --to-bin 20
 ```
 
 ![Console spectrum focused on low-frequency bins](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-low-bins-terminal.png)
@@ -23,7 +23,7 @@ dotnet run --project src\ExtremaSpectrum.Demo -- --min-frequency 0 --input ".\da
 The demo app can also export step-by-step SVG frames:
 
 ```bash
-dotnet run --project src/ExtremaSpectrum.Demo -- --input data/demo-low-010hz-plus-high-160hz.wav --export-step-images temp
+dotnet run --project src/DimonSmart.ExtremaSpectrum.Demo -- --input data/demo-low-010hz-plus-high-160hz.wav --export-step-images temp
 ```
 
 Example frames generated from `data/demo-low-010hz-plus-high-160hz.wav`:
@@ -41,7 +41,7 @@ Example frames generated from `data/demo-low-010hz-plus-high-160hz.wav`:
 ## Install
 
 ```bash
-dotnet add package ExtremaSpectrum
+dotnet add package DimonSmart.ExtremaSpectrum
 ```
 
 The current package targets `.NET 10`.
@@ -49,7 +49,7 @@ The current package targets `.NET 10`.
 ## Quick start
 
 ```csharp
-using ExtremaSpectrum;
+using DimonSmart.ExtremaSpectrum;
 
 var analyzer = new ExtremaSpectrumAnalyzer(new ExtremaSpectrumOptions
 {

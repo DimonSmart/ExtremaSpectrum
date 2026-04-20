@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      ARTIFACTS_PATH: ./artifacts
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      PACKAGE_SOURCE: https://api.nuget.org/v3/index.json
+      PROJECT_PATH: src/DimonSmart.ExtremaSpectrum/DimonSmart.ExtremaSpectrum.csproj
 
     steps:
     - name: Checkout code
@@ -35,6 +40,14 @@ jobs:
 
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
+    - name: Validate NuGet API key
+      shell: bash
+      run: |
+        if [[ -z "$NUGET_API_KEY" ]]; then
+          echo "Repository secret NUGET_API_KEY is not configured."
+          exit 1
+        fi
+
     - name: Restore dependencies
       run: dotnet restore ExtremaSpectrum.slnx
 
@@ -45,28 +58,29 @@ jobs:
       run: dotnet test ExtremaSpectrum.slnx --configuration Release --no-build --verbosity normal
 
     - name: Create NuGet package
-      run: dotnet pack src/ExtremaSpectrum/ExtremaSpectrum.csproj --configuration Release --no-build -p:Version=${{ steps.extract_version.outputs.version }} -p:PackageVersion=${{ steps.extract_version.outputs.version }} --output ./artifacts
+      run: dotnet pack $PROJECT_PATH --configuration Release --no-build -p:Version=${{ steps.extract_version.outputs.version }} -p:PackageVersion=${{ steps.extract_version.outputs.version }} --output $ARTIFACTS_PATH
 
     - name: Upload packages as artifact
       uses: actions/upload-artifact@v4
       with:
         name: nuget-packages
+        if-no-files-found: error
         path: |
-          ./artifacts/*.nupkg
-          ./artifacts/*.snupkg
+          ${{ env.ARTIFACTS_PATH }}/*.nupkg
+          ${{ env.ARTIFACTS_PATH }}/*.snupkg
+
+    - name: Publish package to NuGet
+      run: dotnet nuget push $ARTIFACTS_PATH/*.nupkg --api-key "$NUGET_API_KEY" --source "$PACKAGE_SOURCE" --skip-duplicate
+
+    - name: Publish symbols to NuGet
+      run: dotnet nuget push $ARTIFACTS_PATH/*.snupkg --api-key "$NUGET_API_KEY" --source "$PACKAGE_SOURCE" --skip-duplicate
 
     - name: Create GitHub release
       uses: softprops/action-gh-release@v3
       with:
         files: |
-          ./artifacts/*.nupkg
-          ./artifacts/*.snupkg
+          ${{ env.ARTIFACTS_PATH }}/*.nupkg
+          ${{ env.ARTIFACTS_PATH }}/*.snupkg
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Publish package to NuGet
-      run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-
-    - name: Publish symbols to NuGet
-      run: dotnet nuget push ./artifacts/*.snupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

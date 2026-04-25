@@ -10,6 +10,9 @@ internal static class Program
     {
         try
         {
+            if (IsSvgRasterizerMode(args))
+                return RunSvgRasterizer(args);
+
             var options = ParseArguments(args);
             if (options.ListInputDevices)
             {
@@ -37,6 +40,19 @@ internal static class Program
             AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(ex.Message)}");
             return 1;
         }
+    }
+
+    private static bool IsSvgRasterizerMode(string[] args)
+    {
+        return args.Any(arg => string.Equals(arg, "--rasterize-svg", StringComparison.Ordinal));
+    }
+
+    private static int RunSvgRasterizer(string[] args)
+    {
+        var options = ParseSvgRasterizerArguments(args);
+        SvgPngExporter.Export(options);
+        AnsiConsole.MarkupLine($"[grey]PNG exported:[/] {Markup.Escape(options.OutputPath)}");
+        return 0;
     }
 
     private static IReadOnlyList<SpectrumSegment> AnalyzeSegments(
@@ -288,6 +304,15 @@ internal static class Program
         return parsed;
     }
 
+    private static double ParsePercentageDouble(string value, string optionName)
+    {
+        var parsed = ParseNonNegativeDouble(value, optionName);
+        if (parsed > 100d)
+            throw new ArgumentException($"'{optionName}' expects a percentage in the [0, 100] range.");
+
+        return parsed;
+    }
+
     private static int ParseNonNegativeInt(string value, string optionName)
     {
         if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) || parsed < 0)
@@ -312,6 +337,81 @@ internal static class Program
         return parsed;
     }
 
+    private static SvgRasterizerOptions ParseSvgRasterizerArguments(string[] args)
+    {
+        string? inputPath = null;
+        string? outputPath = null;
+        var cropLeftPercent = 0d;
+        var cropTopPercent = 0d;
+        var cropRightPercent = 0d;
+        var cropBottomPercent = 0d;
+        var dpi = 96d;
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+
+            switch (arg)
+            {
+                case "--help":
+                case "-h":
+                    PrintHelp();
+                    Environment.Exit(0);
+                    break;
+
+                case "--rasterize-svg":
+                    inputPath = Path.GetFullPath(RequireValue(args, ref i, arg));
+                    break;
+
+                case "--output-image":
+                    outputPath = Path.GetFullPath(RequireValue(args, ref i, arg));
+                    break;
+
+                case "--crop-left-percent":
+                    cropLeftPercent = ParsePercentageDouble(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--crop-top-percent":
+                    cropTopPercent = ParsePercentageDouble(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--crop-right-percent":
+                    cropRightPercent = ParsePercentageDouble(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--crop-bottom-percent":
+                    cropBottomPercent = ParsePercentageDouble(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                case "--dpi":
+                    dpi = ParsePositiveDouble(RequireValue(args, ref i, arg), arg);
+                    break;
+
+                default:
+                    if (arg.StartsWith("-", StringComparison.Ordinal))
+                        throw new ArgumentException($"Unknown argument '{arg}'. Use --help for usage.");
+
+                    throw new ArgumentException($"Unexpected positional argument '{arg}' in SVG rasterizer mode.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(inputPath))
+            throw new ArgumentException("--rasterize-svg requires an input SVG path.");
+        if (string.IsNullOrWhiteSpace(outputPath))
+            throw new ArgumentException("--output-image is required in SVG rasterizer mode.");
+
+        return new SvgRasterizerOptions
+        {
+            InputPath = inputPath,
+            OutputPath = outputPath,
+            CropLeftPercent = cropLeftPercent,
+            CropTopPercent = cropTopPercent,
+            CropRightPercent = cropRightPercent,
+            CropBottomPercent = cropBottomPercent,
+            Dpi = dpi
+        };
+    }
+
     private static void PrintHelp()
     {
         AnsiConsole.MarkupLine("[bold]ExtremaSpectrum.Demo[/]");
@@ -319,12 +419,14 @@ internal static class Program
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("Usage:");
         AnsiConsole.WriteLine("  dotnet run --project src/DimonSmart.ExtremaSpectrum.Demo -- [--input PATH] [--microphone] [--list-input-devices] [--device-index N] [--microphone-sample-rate HZ] [--buffer-milliseconds N] [--silence-rms-threshold VALUE] [--display-reference-rms VALUE] [--accumulation NAME] [--min-frequency HZ] [--min-amplitude VALUE] [--window-seconds N] [--overlap-seconds N] [--bins N] [--from-bin N] [--to-bin N] [--height N] [--passes N] [--dump-passes] [--export-step-images DIR]");
+        AnsiConsole.WriteLine("  dotnet run --project src/DimonSmart.ExtremaSpectrum.Demo -- --rasterize-svg INPUT.svg --output-image OUTPUT.png [--crop-left-percent N] [--crop-top-percent N] [--crop-right-percent N] [--crop-bottom-percent N] [--dpi N]");
         AnsiConsole.WriteLine("  accumulation: amplitude, energy");
         AnsiConsole.WriteLine("  microphone: use --microphone to capture live audio, Ctrl+C to stop");
         AnsiConsole.WriteLine("  silence gate: --silence-rms-threshold 0 disables it");
         AnsiConsole.WriteLine("  live display scaling: --display-reference-rms 0.01 maps that RMS to full chart height");
         AnsiConsole.WriteLine("  from-bin / to-bin: restrict displayed bins to [from-bin, to-bin] inclusive (0-based, default: all bins)");
         AnsiConsole.WriteLine("  export-step-images: writes SVG files showing the waveform before and after each pass");
+        AnsiConsole.WriteLine("  rasterize-svg: crops an existing SVG by per-side percentages and renders the result to PNG at the requested DPI");
     }
 
     private static ExtremaSpectrumOptions CreateAnalysisOptions(

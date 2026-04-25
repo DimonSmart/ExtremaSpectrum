@@ -17,7 +17,7 @@ Try the demo with a low-frequency focused view:
 dotnet run --project src\DimonSmart.ExtremaSpectrum.Demo -- --min-frequency 0 --input ".\data\demo-low-010hz-plus-high-160hz.wav" --bins 180 --to-bin 20
 ```
 
-![Console spectrum focused on low-frequency bins](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-low-bins-terminal.png)
+![Console spectrum focused on low-frequency bins](docs/readme-assets/demo-low-plus-high-low-bins-terminal.png)
 
 `AnalyzeDetailed(...)` returns an `ExtremaAnalysisReport` with per-pass spectra, accepted oscillations, support ranges, and waveform snapshots.  
 The demo app can also export step-by-step SVG frames:
@@ -28,15 +28,17 @@ dotnet run --project src/DimonSmart.ExtremaSpectrum.Demo -- --input data/demo-lo
 
 Example frames generated from `data/demo-low-010hz-plus-high-160hz.wav`:
 
-![Initial waveform](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-00-initial.png)
+![Initial waveform](docs/readme-assets/demo-low-plus-high-step-00-initial.png)
 
-![After pass 1](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-01-pass-01.png)
+![After pass 1](docs/readme-assets/demo-low-plus-high-step-01-pass-01.png)
 
-![After pass 2](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-02-pass-02.png)
+![After pass 1 (zoomed left region)](docs/readme-assets/demo-low-plus-high-step-01-pass-01-top-left-zoom.png)
 
-![After pass 3](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-03-pass-03.png)
+![After pass 2](docs/readme-assets/demo-low-plus-high-step-02-pass-02.png)
 
-![After pass 4](https://raw.githubusercontent.com/DimonSmart/ExtremaSpectrum/main/docs/readme-assets/demo-low-plus-high-step-04-pass-04.png)
+![After pass 3](docs/readme-assets/demo-low-plus-high-step-03-pass-03.png)
+
+![After pass 4](docs/readme-assets/demo-low-plus-high-step-04-pass-04.png)
 
 ## Install
 

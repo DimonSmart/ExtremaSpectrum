@@ -32,6 +32,7 @@
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\docs\readme-assets\extrema-spectrum-icon.png" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\readme-assets\*.png" Pack="true" PackagePath="docs/readme-assets\" />
   </ItemGroup>
 
 </Project>
